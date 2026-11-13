@@ -72,3 +72,14 @@ describe('dateTimeLabel', () => {
     expect(dateTimeLabel('2026-11-13T07:05:00Z')).toMatch(/^13 .* 2026, 14:05$/);
   });
 });
+
+import { durLabel, rpShort } from './format';
+
+describe('durLabel and rpShort', () => {
+  it('durations the way the team reads them', () => {
+    expect([null, 0.4, 12.4, 65, 120, 3000].map(durLabel)).toEqual(['-', '< 1 mnt', '12 mnt', '1 j 5 mnt', '2 j', '2 hari']);
+  });
+  it('short money', () => {
+    expect([0, 850_000, 4_500_000, 16_000_000, 2_300_000_000].map(rpShort)).toEqual(['Rp 0', 'Rp 850 rb', 'Rp 4,5 jt', 'Rp 16 jt', 'Rp 2,3 M']);
+  });
+});
