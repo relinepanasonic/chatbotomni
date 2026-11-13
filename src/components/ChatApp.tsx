@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { channelLabel, type Agent, type ChatFilter, type ChatStatus, type ConversationSummary, type Counts, type LeadSource, type ListResponse, type QuickReply, type SourcesResponse, type Thread, type ThreadMessage } from '@/lib/types';
+import { channelLabel, type Agent, type ChatFilter, type ChatStatus, type ConversationSummary, type Counts, type LeadSource, type ListResponse, type QuickReply, type SourcesResponse, type Thread, type ThreadMessage, type ChatLabel } from '@/lib/types';
 import { dayLabel, timeLabel, shortTime, waitLabel, waitMinutes, waitTone } from '@/lib/format';
 import { askNotifyPermission, beep, notify, notifySupported } from '@/lib/alerts';
 import { QuickReplyManager } from './QuickReplyManager';
+import { LABEL_CLASS, LabelsBlock, LeadBlock, RemindersBlock } from './ChatExtras';
+import { uploadToSignedUrl } from '@/lib/upload';
+import { timeLabel as clock } from '@/lib/format';
 import { Rail } from './Rail';
 
 /**
@@ -21,6 +24,7 @@ const TABS: Array<{ key: ChatFilter; label: string; count: (c: Counts) => number
   { key: 'all', label: 'All', count: (c) => c.all },
   { key: 'unserved', label: 'Unserved', count: (c) => c.unserved },
   { key: 'bot', label: 'Bot', count: (c) => c.bot },
+  { key: 'followup', label: 'Follow-up', count: (c) => c.followup ?? 0 },
   { key: 'resolved', label: 'Done', count: (c) => c.resolved },
 ];
 const AVATAR = ['#2f9bf0', '#14b8a6', '#8b7cf6', '#f59e0b', '#ef6b8a', '#4f9d69', '#0ea5e9'];
@@ -60,6 +64,7 @@ const I = {
   check: 'M20 6L9 17l-5-5',
   note: 'M4 4h16v12l-4 4H4V4zm12 12v4M8 9h8M8 13h5',
   bolt: 'M13 2L4 14h7l-1 8 9-12h-7l1-8z',
+  clip: 'M21 12.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.3 3.3 0 014.7 4.7l-9 9a1.7 1.7 0 01-2.4-2.4l8.3-8.3',
 };
 
 /* ------------------------------------------------------------------ small pieces */
@@ -95,7 +100,12 @@ function Bubble({ m }: { m: ThreadMessage }) {
       <div className="max-w-[78%]">
         {label && <div className={`mb-0.5 text-[10px] font-semibold ${mine ? 'text-right' : ''} text-ink-soft`}>{label}</div>}
         <div className={`${style} whitespace-pre-wrap break-words px-3.5 py-2 text-[13.5px] leading-relaxed shadow-[0_1px_2px_rgba(23,49,77,0.06)]`}>
-          {m.text || (m.mediaType ? <em className="opacity-80">({m.mediaType})</em> : '')}
+          {m.mediaType === 'image' && m.mediaUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <a href={m.mediaUrl} target="_blank" rel="noreferrer"><img src={m.mediaUrl} alt="Picture in the chat" className="mb-1 max-h-64 max-w-full rounded-lg" loading="lazy" /></a>
+          )}
+          {m.mediaType && m.mediaType !== 'image' && m.mediaUrl && <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="mb-1 block font-semibold underline">📎 Open the {m.mediaType}</a>}
+          {m.text || (m.mediaType && !m.mediaUrl ? <em className="opacity-80">({m.mediaType})</em> : '')}
         </div>
         <div className={`mt-0.5 text-[10px] text-ink-soft ${mine ? 'text-right' : ''}`}>{timeLabel(m.at)}</div>
       </div>
@@ -136,6 +146,11 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
   const [authLost, setAuthLost] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
+  const [labelFilter, setLabelFilter] = useState('');
+  const [allLabels, setAllLabels] = useState<ChatLabel[]>([]);
+  const [attach, setAttach] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const remSeen = useRef<Set<string> | null>(null);
   const [alertsOn, setAlertsOn] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const endRef = useRef<HTMLDivElement>(null);
@@ -151,11 +166,11 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   useEffect(() => { try { setAlertsOn(localStorage.getItem(ALERT_KEY) === '1'); } catch { /* ignore */ } }, []);
 
   const loadList = useCallback(async () => {
-    const qs = new URLSearchParams({ filter, ...(q.trim() ? { q: q.trim() } : {}) });
+    const qs = new URLSearchParams({ filter, ...(q.trim() ? { q: q.trim() } : {}), ...(labelFilter ? { label: labelFilter } : {}) });
     const r = await api<ListResponse>(`/conversations?${qs}`);
     if (!r.ok) { if (r.status === 401 || r.status === 403) setAuthLost(true); else setListError(r.error); return; }
-    setAuthLost(false); setListError(null); setList(r.data.conversations); setCounts(r.data.counts); if (r.data.me) setMe(r.data.me);
-  }, [filter, q]);
+    setAuthLost(false); setListError(null); setList(r.data.conversations); setCounts(r.data.counts); if (r.data.me) setMe(r.data.me); if (r.data.labels) setAllLabels(r.data.labels);
+  }, [filter, q, labelFilter]);
 
   useEffect(() => { const t = setTimeout(loadList, q ? 250 : 0); return () => clearTimeout(t); }, [loadList, q]);
   // Poll only while the tab is on screen, and catch up the moment it comes back.
@@ -176,6 +191,16 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
       if (worth.length && alertsRef.current) { beep(); notify(worth.length === 1 ? worth[0].name : `${worth.length} new messages`, worth[0].lastText); }
     }
     seen.current = new Set([...(seen.current || []), ...keys]);
+  }, [list]);
+
+  useEffect(() => {
+    if (!list) return;
+    const due = list.filter((c) => c.nextReminder?.state === 'overdue').map((c) => ({ key: c.nextReminder!.id, c }));
+    if (remSeen.current && alertsRef.current) {
+      const fresh = due.filter((d) => !remSeen.current!.has(d.key));
+      if (fresh.length) { beep(); notify(`Follow up: ${fresh[0].c.name}`, fresh[0].c.nextReminder?.note || 'A follow-up reminder is due.'); }
+    }
+    remSeen.current = new Set([...(remSeen.current || []), ...due.map((d) => d.key)]);
   }, [list]);
 
   useEffect(() => { document.title = counts.unserved > 0 ? `(${counts.unserved}) Chat Inbox` : 'Chat Inbox'; }, [counts.unserved]);
@@ -213,9 +238,27 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
 
   const refresh = async () => { if (selected) await Promise.all([loadThread(selected), loadList()]); };
 
+  const sendImage = async (file: File) => {
+    if (!selected) return;
+    const t = await api<{ ok: true; path: string; token: string; bucket: string }>(`/conversations/${encodeURIComponent(selected)}/image-upload`, { method: 'POST', body: JSON.stringify({ fileName: file.name, size: file.size, type: file.type }) });
+    if (!t.ok) { setNotice({ kind: 'error', text: t.error }); return false; }
+    if (!demo) { const problem = await uploadToSignedUrl(t.data, file, file.type || 'image/jpeg'); if (problem) { setNotice({ kind: 'error', text: problem }); return false; } }
+    const r = await api<{ ok: true }>(`/conversations/${encodeURIComponent(selected)}/send-image`, { method: 'POST', body: JSON.stringify({ path: t.data.path, caption: text.trim() }) });
+    if (!r.ok) { setNotice({ kind: 'error', text: r.error }); return false; }
+    return true;
+  };
+
   const send = async () => {
     const body = text.trim();
-    if (!selected || !body || sending) return;
+    if (!selected || sending) return;
+    if (attach && mode === 'reply') {
+      setSending(true); setNotice(null);
+      const ok = await sendImage(attach);
+      setSending(false);
+      if (ok) { setAttach(null); setText(''); await refresh(); }
+      return;
+    }
+    if (!body) return;
     setSending(true); setNotice(null);
     const r = await api<{ ok: true }>(`/conversations/${encodeURIComponent(selected)}/${mode === 'note' ? 'notes' : 'send'}`, { method: 'POST', body: JSON.stringify({ text: body }) });
     setSending(false);
@@ -283,14 +326,19 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
             <Icon d={I.search} size={16} />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, number, message or agent" aria-label="Search conversations" className="w-full bg-transparent text-[13px] text-ink outline-none placeholder:text-[#8aa0b6]" />
           </label>
+          {allLabels.length > 0 && (
+            <select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)} aria-label="Filter by label" className="mt-2 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-semibold text-ink-soft outline-none focus:border-brand">
+              <option value="">All labels</option>{allLabels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          )}
         </div>
-        <div className="grid grid-cols-5 gap-0.5 border-b border-line px-2.5 pb-2" role="tablist">
+        <div className="flex gap-0.5 overflow-x-auto border-b border-line px-2.5 pb-2" role="tablist">
           {TABS.map((t) => {
             const on = filter === t.key;
             const n = t.count(counts);
-            const hot = t.key === 'unserved' && n > 0 && !on;
+            const hot = (t.key === 'unserved' || t.key === 'followup') && n > 0 && !on;
             return (
-              <button key={t.key} role="tab" aria-selected={on} onClick={() => setFilter(t.key)} className={`rounded-lg px-0.5 py-1.5 text-center text-[11.5px] font-semibold transition ${on ? 'bg-brand text-white' : 'text-ink-soft hover:bg-brand-soft'}`}>
+              <button key={t.key} role="tab" aria-selected={on} onClick={() => setFilter(t.key)} className={`shrink-0 rounded-lg px-2 py-1.5 text-center text-[11.5px] font-semibold transition ${on ? 'bg-brand text-white' : 'text-ink-soft hover:bg-brand-soft'}`}>
                 {t.label}
                 <span className={`ml-0.5 rounded-full px-1 text-[10px] ${on ? 'bg-white/25' : hot ? 'bg-bad text-white' : 'bg-[#e8eff7]'}`}>{n}</span>
               </button>
@@ -321,6 +369,12 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                       {c.source && c.source.channel !== 'unknown' && <span className="truncate rounded-full bg-brand-soft px-1.5 py-px text-[10px] font-bold text-brand-dark" title={c.source.label ?? undefined}>{channelLabel(c.source.channel)}</span>}
                       <span className="ml-auto truncate">{c.assignedTo ? `👤 ${c.assignedTo.name}` : 'Unassigned'}</span>
                     </span>
+                    {((c.labels && c.labels.length > 0) || c.nextReminder) && (
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        {c.nextReminder && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${c.nextReminder.state === 'overdue' ? 'bg-bad-soft text-bad' : c.nextReminder.state === 'today' ? 'bg-warn-soft text-warn' : 'bg-[#eef2f6] text-ink-soft'}`} title={c.nextReminder.note ?? undefined}>⏰ {c.nextReminder.state === 'overdue' ? 'Overdue' : c.nextReminder.state === 'today' ? `Today ${clock(c.nextReminder.dueAt)}` : shortTime(c.nextReminder.dueAt)}</span>}
+                        {(c.labels || []).slice(0, 3).map((l) => <span key={l.id} className={`rounded-full px-1.5 py-px text-[10px] font-bold ${LABEL_CLASS[l.color] ?? LABEL_CLASS.blue}`}>{l.name}</span>)}
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>
@@ -396,9 +450,20 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   <>
                     <button onClick={suggest} disabled={suggesting} className="flex items-center gap-1.5 rounded-lg border border-brand/40 px-2.5 py-1 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft disabled:opacity-50" title="The AI writes a draft from the bot's knowledge. Nothing is sent."><Icon d={I.spark} size={14} />{suggesting ? 'Writing...' : 'Suggest reply'}</button>
                     <button onClick={() => setQrOpen(true)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft" title="Type / in the box to use a quick reply"><Icon d={I.bolt} size={14} />Quick replies</button>
+                    <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft" title="Send a photo (the text becomes its caption)"><Icon d={I.clip} size={14} />Photo</button>
+                    <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { setAttach(f); setNotice(null); boxRef.current?.focus(); } }} />
                   </>
                 )}
               </div>
+              {attach && mode === 'reply' && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-brand-softer px-2 py-1.5 text-[12px]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={URL.createObjectURL(attach)} alt="" className="h-10 w-10 rounded object-cover" />
+                  <span className="min-w-0 flex-1 truncate font-semibold">{attach.name}</span>
+                  <span className="text-ink-soft">The text below is its caption</span>
+                  <button onClick={() => setAttach(null)} aria-label="Remove the photo" className="rounded px-1.5 text-[14px] font-bold text-ink-soft hover:text-bad">×</button>
+                </div>
+              )}
               <div className="flex items-end gap-2">
                 <textarea ref={boxRef} value={text} onChange={(e) => setText(e.target.value)} rows={mode === 'reply' && text.length > 120 ? 4 : 1} maxLength={mode === 'note' ? 2000 : 1500} aria-label={mode === 'note' ? 'Type an internal note' : 'Type a message'}
                   onKeyDown={(e) => {
@@ -412,7 +477,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   }}
                   placeholder={mode === 'note' ? 'Write a private note for the team...' : 'Type a message, or / for a quick reply (Enter to send, Shift+Enter for a new line)'}
                   className={`max-h-40 min-h-[42px] flex-1 resize-none rounded-xl border px-3.5 py-2.5 text-[13.5px] outline-none placeholder:text-[#8aa0b6] focus:bg-white ${mode === 'note' ? 'border-[#f2d9a0] bg-[#fff6e0] focus:border-warn' : 'border-line bg-brand-softer focus:border-brand'}`} />
-                <button onClick={send} disabled={sending || !text.trim()} aria-label={mode === 'note' ? 'Save note' : 'Send message'} className={`flex h-[42px] shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-40 ${mode === 'note' ? 'w-auto bg-warn px-3 text-[12.5px] font-bold hover:brightness-95' : 'w-[42px] bg-brand hover:bg-brand-dark'}`}>{mode === 'note' ? 'Add note' : <Icon d={I.send} size={18} />}</button>
+                <button onClick={send} disabled={sending || (!text.trim() && !(attach && mode === 'reply'))} aria-label={mode === 'note' ? 'Save note' : 'Send message'} className={`flex h-[42px] shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-40 ${mode === 'note' ? 'w-auto bg-warn px-3 text-[12.5px] font-bold hover:brightness-95' : 'w-[42px] bg-brand hover:bg-brand-dark'}`}>{mode === 'note' ? 'Add note' : <Icon d={I.send} size={18} />}</button>
               </div>
               <p className="mt-1.5 text-[10.5px] text-ink-soft">{mode === 'note' ? 'Notes are only for the team. The lead never sees them.' : 'Sent from the sales number. Replying pauses the bot for this chat and makes it yours if nobody has it.'}</p>
             </footer>
@@ -458,6 +523,18 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
             ) : <p className="text-[12.5px] text-ink-soft">The first message will be saved here and compared with your ads.</p>}
           </Block>
 
+          {thread && (
+            <Block title="Labels">
+              <LabelsBlock groupId={thread.id} onChat={thread.labels ?? []} all={allLabels} onChanged={() => void refresh()} />
+            </Block>
+          )}
+
+          {thread && (
+            <Block title={`Follow-up${thread.reminders?.filter((r) => !r.doneAt).length ? ` (${thread.reminders.filter((r) => !r.doneAt).length})` : ''}`}>
+              <RemindersBlock thread={{ ...thread, reminders: thread.reminders ?? [] }} agents={agents} me={me} onChanged={() => void refresh()} />
+            </Block>
+          )}
+
           <Block title="Customer">
             {thread?.client ? (
               <dl className="space-y-1 text-[12.5px]">
@@ -487,17 +564,8 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
             {status !== 'off' && <button onClick={() => setStatus('off')} className="mt-2 text-[11.5px] font-semibold text-ink-soft underline decoration-dotted hover:text-brand-dark">Switch the bot off for this chat</button>}
           </Block>
 
-          <Block title={`Deals (${thread?.deals.length ?? 0})`}>
-            {thread?.deals.length ? (
-              <ul className="space-y-2">
-                {thread.deals.map((d) => (
-                  <li key={d.id} className="rounded-lg border border-line p-2 text-[12.5px]">
-                    <div className="font-semibold">{d.title}</div>
-                    <div className="mt-0.5 flex items-center justify-between text-ink-soft"><span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-bold text-brand-dark">{d.stage}</span><span>{d.value ? `Rp ${d.value.toLocaleString('id-ID')}` : ''}</span></div>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="text-[12.5px] text-ink-soft">No deal yet.</p>}
+          <Block title={`Lead & deals (${thread?.deals.length ?? 0})`}>
+            {thread ? <LeadBlock thread={thread} me={me} agents={agents} onChanged={() => void refresh()} /> : <p className="text-[12.5px] text-ink-soft">Loading...</p>}
           </Block>
         </aside>
       )}

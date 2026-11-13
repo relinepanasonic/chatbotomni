@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { exampleFlows, isTrigger, validateGraph, type Graph } from './flow';
 import type { FlowFull, FlowListItem, FlowRun } from './types';
-import type { Agent, ChatSource, Channel, LeadSource, SourceReport, BibleDocFull, BibleLogEntry, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
+import type { ChatLabel, ReminderItem, Agent, ChatSource, Channel, LeadSource, SourceReport, BibleDocFull, BibleLogEntry, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
 
 /** Made-up chats for previewing the design locally (DEMO=1, never in production). Nothing here touches the ERP or WhatsApp. */
 
@@ -11,7 +11,7 @@ const M = (id: string, sender: ThreadMessage['sender'], text: string, min: numbe
 const AGENTS: Agent[] = [{ id: 'u-demo', name: 'Demo', role: 'sales' }, { id: 'u-rani', name: 'Rani', role: 'sales' }, { id: 'u-lucy', name: 'Lucy', role: 'sales' }, { id: 'u-vani', name: 'Vani', role: 'admin' }];
 const ME: Person = { id: 'u-demo', name: 'Demo' };
 
-interface DemoChat { id: string; phone: string; name: string; status: ChatStatus; botReplies: number; lead: { name?: string; store?: string; need?: string } | null; messages: ThreadMessage[]; assignedTo: Person | null; resolved: boolean; src?: { sourceId: string | null; label: string | null; channel: string; by: string | null; first: string }; client?: Thread['client']; deals?: Thread['deals'] }
+interface DemoChat { id: string; phone: string; name: string; status: ChatStatus; botReplies: number; lead: { name?: string; store?: string; need?: string } | null; messages: ThreadMessage[]; assignedTo: Person | null; resolved: boolean; src?: { sourceId: string | null; label: string | null; channel: string; by: string | null; first: string }; client?: Thread['client']; deals?: Thread['deals']; labelIds?: string[]; rems?: ReminderItem[] }
 
 const chats: DemoChat[] = [
   { id: 'c1', phone: '6281234500011', name: 'Budi Santoso', status: 'bot', botReplies: 1, assignedTo: null, resolved: false, lead: { name: 'Budi', store: 'Kawat Nyamuk Jaya', need: 'Iklan Shopee' },
@@ -38,6 +38,16 @@ chats[1].src = { sourceId: 's2', label: SOURCES[1].name, channel: 'google_ads', 
 chats[3].src = { sourceId: null, label: null, channel: 'unknown', by: null, first: 'info iklan' };
 chats[4].src = { sourceId: 's1', label: SOURCES[0].name, channel: 'meta_ads', by: null, first: SOURCES[0].first_message };
 
+const LABELS: ChatLabel[] = [{ id: 'lb1', name: 'Hot lead', color: 'red' }, { id: 'lb2', name: 'Toko baru', color: 'green' }, { id: 'lb3', name: 'VIP', color: 'amber' }];
+const remState = (iso: string): ReminderItem['state'] => (Date.parse(iso) <= Date.now() ? 'overdue' : new Date(iso).toDateString() === new Date().toDateString() ? 'today' : 'later');
+chats[0].labelIds = ['lb1', 'lb2'];
+chats[1].labelIds = ['lb3'];
+chats[1].rems = [{ id: 'rm1', dueAt: new Date(Date.now() - 30 * 60000).toISOString(), note: 'Kirim proposal paket Juragan', assignedName: 'Rani', createdBy: 'Rani', doneAt: null, doneBy: null, state: 'overdue' }];
+chats[0].rems = [{ id: 'rm2', dueAt: new Date(Date.now() + 26 * 3600000).toISOString(), note: 'Tanya omzet', assignedName: 'Demo', createdBy: 'Demo', doneAt: null, doneBy: null, state: 'later' }];
+const labelsOf = (c: DemoChat) => LABELS.filter((l) => (c.labelIds || []).includes(l.id));
+const remsOf = (c: DemoChat) => (c.rems || []).map((r) => ({ ...r, state: remState(r.dueAt) }));
+const nextRem = (c: DemoChat) => { const r = remsOf(c).filter((x) => !x.doneAt).sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]; return r ? { id: r.id, dueAt: r.dueAt, note: r.note, state: r.state } : null; };
+
 const QUICK: QuickReply[] = [
   { id: 'q1', shortcut: 'salam', title: 'Salam pembuka', body: 'Hi kak, terima kasih sudah menghubungi Prof Toko Online. Boleh tau toko kakak jualan apa ya?' },
   { id: 'q2', shortcut: 'paket', title: 'Info paket', body: 'Untuk kelola toko Shopee ada beberapa pilihan paket kak, mulai dari New Store sampai Big Company. Pilihannya tergantung omzet dan jumlah produk toko kakak.' },
@@ -58,7 +68,7 @@ const summary = (c: DemoChat): ConversationSummary => {
     lastText: last.text.length > 90 ? `${last.text.slice(0, 87)}...` : last.text, lastAt: last.at, lastFromMe: last.sender !== 'lead',
     unserved: last.sender === 'lead', waitingSince: last.sender === 'lead' ? waiting : null, status: c.status, lead: c.lead, botReplies: c.botReplies,
     assignedTo: c.assignedTo, resolved: c.resolved && !(lastLead && lastLead.at > ago(0)),
-    source: srcOf(c),
+    source: srcOf(c), labels: labelsOf(c), nextReminder: nextRem(c),
   };
 };
 
@@ -72,6 +82,26 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   if (parts[0] === 'bible') return bibleDemo(parts, method, b);
   if (parts[0] === 'flows') return flowsDemo(parts, method, b);
   if (parts[0] === 'sources') return sourcesDemo(parts, method, b, url);
+  if (parts[0] === 'labels') {
+    if (method === 'GET') return json({ labels: LABELS });
+    if (method === 'DELETE') { const i = LABELS.findIndex((l) => l.id === parts[1]); if (i >= 0) LABELS.splice(i, 1); return json({ ok: true }); }
+    const name = String(b?.name ?? '').trim();
+    if (!name) return json({ error: 'Give the label a name.' }, 400);
+    if (LABELS.some((l) => l.name.toLowerCase() === name.toLowerCase())) return json({ error: `A label called "${name}" already exists.` }, 409);
+    LABELS.push({ id: `lb${Date.now()}`, name, color: String(b?.color || 'blue') });
+    return json({ ok: true });
+  }
+  if (parts[0] === 'deals' && parts[2] === 'stage') {
+    for (const c of chats) for (const d of c.deals || []) if (d.id === parts[1]) {
+      if (d.stage === 'Invoice' || d.stage === 'Deal') return json({ error: 'An invoiced deal cannot move back.' }, 400);
+      d.stage = String(b?.stage); return json({ ok: true });
+    }
+    return json({ error: 'Deal not found.' }, 404);
+  }
+  if (parts[0] === 'reminders') {
+    if (parts[2] === 'done') { for (const c of chats) for (const r of c.rems || []) if (r.id === parts[1]) { r.doneAt = b?.done === false ? null : new Date().toISOString(); r.doneBy = 'Demo'; } return json({ ok: true }); }
+    return json({ reminders: chats.flatMap((c) => remsOf(c).filter((r) => !r.doneAt).map((r) => ({ ...r, groupId: c.id, chat: c.name }))) });
+  }
   if (parts[0] === 'agents') return json({ agents: AGENTS });
   if (parts[0] === 'quick-replies') {
     if (method === 'GET') return json({ quickReplies: QUICK });
@@ -89,9 +119,10 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     const all = chats.map(summary).sort((a, b2) => String(b2.lastAt).localeCompare(String(a.lastAt)));
     const f = url.searchParams.get('filter') || 'all';
     const q = (url.searchParams.get('q') || '').toLowerCase();
+    const label = url.searchParams.get('label') || '';
     const open = all.filter((c) => !c.resolved);
-    const list = all.filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : true)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
-    const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.length - open.length } };
+    const list = all.filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : f === 'followup' ? !!c.nextReminder && c.nextReminder.state !== 'later' : true)) && (!label || (c.labels || []).some((l) => l.id === label)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
+    const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.length - open.length, followup: open.filter((c) => c.nextReminder && c.nextReminder.state !== 'later').length }, labels: LABELS };
     return json(res);
   }
   const chat = chats.find((c) => c.id === parts[1]);
@@ -102,7 +133,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
       id: chat.id, phone: chat.phone, name: chat.name, messages: [...chat.messages].sort((x, y) => x.at.localeCompare(y.at)),
       bot: { status: chat.status, replies: chat.botReplies, reason: chat.status === 'human' ? 'A salesperson replied.' : null, lead: chat.lead },
       botLog: chat.messages.filter((m) => m.sender === 'bot').map((m) => ({ reply: m.text, handoff: /tim kami/i.test(m.text), ok: true, detail: null, created_at: m.at })),
-      assignedTo: chat.assignedTo, resolved: summary(chat).resolved, source: srcOf(chat), sourceId: chat.src?.sourceId ?? null, firstMessage: chat.src?.first ?? null, client: chat.client ?? null, deals: chat.deals ?? [],
+      assignedTo: chat.assignedTo, resolved: summary(chat).resolved, source: srcOf(chat), sourceId: chat.src?.sourceId ?? null, firstMessage: chat.src?.first ?? null, client: chat.client ?? null, deals: chat.deals ?? [], labels: labelsOf(chat), reminders: remsOf(chat),
     };
     return json(t);
   }
@@ -125,6 +156,24 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     if (!a) return json({ error: 'That person cannot be given chats.' }, 400);
     chat.assignedTo = { id: a.id, name: a.name };
     return json({ ok: true, assignedTo: chat.assignedTo });
+  }
+  if (leaf === 'labels' && method === 'POST') { chat.labelIds = (Array.isArray(b?.labelIds) ? b.labelIds : []).filter((x: string) => LABELS.some((l) => l.id === x)); return json({ ok: true, labels: labelsOf(chat) }); }
+  if (leaf === 'lead' && method === 'POST') {
+    chat.deals = [...(chat.deals || []), { id: `d${Date.now()}`, title: String(b?.title || 'Lead from WhatsApp'), stage: 'Lead', value: Number(String(b?.value || '').replace(/\D/g, '')) || 0, sales: 'Demo', salesId: 'u-demo' }];
+    if (!chat.client) chat.client = { id: `k${Date.now()}`, name: String(b?.name || chat.name), sales: 'Demo', serviceEnd: null };
+    return json({ ok: true, dealId: 'x', clientId: chat.client.id, newClient: true });
+  }
+  if (leaf === 'reminders' && method === 'POST') {
+    const due = String(b?.dueAt || '');
+    if (!Number.isFinite(Date.parse(due)) || Date.parse(due) < Date.now() - 60000) return json({ error: 'The reminder time has already passed.' }, 400);
+    chat.rems = [...(chat.rems || []), { id: `rm${Date.now()}`, dueAt: new Date(due).toISOString(), note: String(b?.note || '') || null, assignedName: 'Demo', createdBy: 'Demo', doneAt: null, doneBy: null, state: remState(due) }];
+    return json({ ok: true, id: 'x' });
+  }
+  if (leaf === 'image-upload' && method === 'POST') return json({ ok: true, path: `chat/demo/${chat.id}/out-${Date.now()}.jpg`, token: 'demo', bucket: 'wa-files' });
+  if (leaf === 'send-image' && method === 'POST') {
+    chat.messages.push({ id: `m${Date.now()}`, sender: 'team', senderName: 'Demo', text: String(b?.caption || ''), mediaType: 'image', at: new Date().toISOString(), mediaUrl: '/logo.png' } as ThreadMessage);
+    chat.status = 'human';
+    return json({ ok: true });
   }
   if (leaf === 'source' && method === 'POST') {
     const sid = b?.sourceId ?? null;
