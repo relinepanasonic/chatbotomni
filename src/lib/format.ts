@@ -21,3 +21,18 @@ export function shortTime(iso: string | null, now = new Date()): string {
   if (ymd(d) === ymd(new Date(now.getTime() - 86400000))) return 'Kemarin';
   return new Intl.DateTimeFormat('id-ID', { timeZone: TZ, day: '2-digit', month: 'short' }).format(d);
 }
+
+/** How long a lead has waited for an answer, in whole minutes. */
+export const waitMinutes = (since: string | null, now = new Date()): number => (since ? Math.max(0, Math.floor((now.getTime() - new Date(since).getTime()) / 60000)) : 0);
+
+/** "baru saja", "12 mnt", "1 j 5 mnt", "2 hari". */
+export function waitLabel(min: number): string {
+  if (min < 1) return 'baru saja';
+  if (min < 60) return `${min} mnt`;
+  if (min < 1440) { const h = Math.floor(min / 60); const m = min % 60; return m ? `${h} j ${m} mnt` : `${h} j`; }
+  return `${Math.floor(min / 1440)} hari`;
+}
+
+export type WaitTone = 'ok' | 'warn' | 'bad';
+/** Green until 5 minutes, amber until 15, then red: the team's reply-time target. */
+export const waitTone = (min: number): WaitTone => (min >= 15 ? 'bad' : min >= 5 ? 'warn' : 'ok');
