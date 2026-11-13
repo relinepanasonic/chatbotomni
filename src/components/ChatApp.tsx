@@ -63,7 +63,8 @@ function Rail({ erpUrl }: { erpUrl: string }) {
   const item = 'flex h-11 w-11 items-center justify-center rounded-xl text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white';
   return (
     <nav className="hidden w-[68px] shrink-0 flex-col items-center gap-2 bg-gradient-to-b from-[#4aaaf5] to-[#2380d8] py-4 md:flex" aria-label="Main">
-      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-lg font-black text-brand-dark" aria-hidden="true">P</span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.png" alt="Professor Online chat" width={46} height={46} className="mb-3 h-[46px] w-[46px] drop-shadow-[0_2px_4px_rgba(10,60,120,0.35)]" />
       <span className={`${item} bg-white/20 !text-white`} title="Inbox" aria-current="page"><Icon d={I.inbox} /></span>
       <a className={item} href={`${erpUrl}/hrd/wa/sales`} title="Bot script and settings (in the ERP)"><Icon d={I.bot} /></a>
       <a className={item} href={`${erpUrl}/contacts`} title="Contacts (in the ERP)"><Icon d={I.users} /></a>
