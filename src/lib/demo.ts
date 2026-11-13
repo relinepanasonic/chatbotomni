@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { exampleFlows, isTrigger, validateGraph, type Graph } from './flow';
+import type { FlowFull, FlowListItem, FlowRun } from './types';
 import type { Agent, ChatSource, Channel, LeadSource, SourceReport, BibleDocFull, BibleLogEntry, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
 
 /** Made-up chats for previewing the design locally (DEMO=1, never in production). Nothing here touches the ERP or WhatsApp. */
@@ -68,6 +70,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   const b: any = body;
 
   if (parts[0] === 'bible') return bibleDemo(parts, method, b);
+  if (parts[0] === 'flows') return flowsDemo(parts, method, b);
   if (parts[0] === 'sources') return sourcesDemo(parts, method, b, url);
   if (parts[0] === 'agents') return json({ agents: AGENTS });
   if (parts[0] === 'quick-replies') {
@@ -244,4 +247,43 @@ function sourcesDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any,
   if (i < 0) return json({ error: 'Source not found.' }, 404);
   if (method === 'DELETE') { SOURCES.splice(i, 1); return json({ ok: true }); }
   return json({ error: 'Not found.' }, 404);
+}
+
+// ---------------------------------------------------------------- scenario flows (demo)
+const demoFlows: FlowFull[] = exampleFlows().slice(0, 2).map((f, i) => ({ id: `f${i + 1}`, name: f.name, description: f.description, active: i === 0, graph: f.graph, updated_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(), updated_by: 'Nico' }));
+const demoRuns: FlowRun[] = [
+  { id: 'r1', flow_id: 'f1', flow_name: demoFlows[0].name, chat: 'Budi Santoso', trigger_text: 'Halo kak, saya mau tanya Paket Sultan dari iklan Instagram', actions: ['send'], handled: true, outcome: 'ok', detail: 'sent a message', created_at: new Date(Date.now() - 12 * 60000).toISOString() },
+  { id: 'r2', flow_id: 'f1', flow_name: demoFlows[0].name, chat: 'Hendra Wijaya', trigger_text: 'Selamat pagi, saya lihat iklan kakak di Instagram', actions: ['ai'], handled: true, outcome: 'ok', detail: 'AI: replied', created_at: new Date(Date.now() - 26 * 3600000).toISOString() },
+];
+
+function flowsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
+  const item = (f: FlowFull): FlowListItem => ({ id: f.id, name: f.name, description: f.description, active: f.active, boxes: f.graph.nodes.length, trigger: f.graph.nodes.find((n) => isTrigger(n.type))?.type ?? null, runs7d: demoRuns.filter((r) => r.flow_id === f.id).length, problems: validateGraph(f.graph).errors.length, created_by: 'Nico', created_at: f.updated_at, updated_at: f.updated_at, updated_by: f.updated_by });
+  if (parts.length === 1 && method === 'GET') return json({ flows: demoFlows.map(item), canEdit: true });
+  if (parts.length === 1 && method === 'POST') {
+    const name = String(b?.name ?? '').trim();
+    if (!name) return json({ error: 'Give the flow a name.' }, 400);
+    const graph = (b?.graph && Array.isArray(b.graph.nodes) ? b.graph : { nodes: [], edges: [] }) as Graph;
+    const v = validateGraph(graph);
+    if (v.errors.length && b?.active === true) return json({ error: `Fix this before switching the flow on: ${v.errors[0]}` }, 400);
+    const existing = b?.id ? demoFlows.find((f) => f.id === b.id) : undefined;
+    const warnings = [...v.errors.map((e) => `Not ready: ${e}`), ...v.warnings];
+    if (existing) { Object.assign(existing, { name, description: b?.description ?? null, active: b?.active === true, graph, updated_at: new Date().toISOString(), updated_by: 'Demo' }); return json({ ok: true, id: existing.id, warnings }); }
+    const f: FlowFull = { id: `f${Date.now()}`, name, description: b?.description ?? null, active: b?.active === true, graph, updated_at: new Date().toISOString(), updated_by: 'Demo' };
+    demoFlows.push(f);
+    return json({ ok: true, id: f.id, warnings });
+  }
+  if (parts[1] === 'examples' && method === 'POST') {
+    let created = 0;
+    for (const ex of exampleFlows()) if (!demoFlows.some((f) => f.name === ex.name)) { demoFlows.push({ id: `f${Date.now()}${created}`, name: ex.name, description: ex.description, active: false, graph: ex.graph, updated_at: new Date().toISOString(), updated_by: 'Demo' }); created++; }
+    return json({ ok: true, created });
+  }
+  if (parts[1] === 'runs') return json({ runs: [...demoRuns].sort((x, y) => y.created_at.localeCompare(x.created_at)) });
+  const f = demoFlows.find((x) => x.id === parts[1]);
+  if (!f) return json({ error: 'Flow not found.' }, 404);
+  if (parts[2] === 'active' && method === 'POST') {
+    if (b?.active === true && validateGraph(f.graph).errors.length) return json({ error: `Fix this before switching the flow on: ${validateGraph(f.graph).errors[0]}` }, 400);
+    f.active = b?.active === true; return json({ ok: true });
+  }
+  if (method === 'DELETE') { demoFlows.splice(demoFlows.indexOf(f), 1); return json({ ok: true }); }
+  return json(f);
 }
