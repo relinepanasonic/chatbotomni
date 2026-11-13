@@ -21,3 +21,25 @@ describe('format (Jakarta time)', () => {
     expect(shortTime(null, NOW)).toBe('');
   });
 });
+
+import { waitLabel, waitMinutes, waitTone } from './format';
+
+describe('waiting time', () => {
+  const NOW2 = new Date('2026-11-13T05:00:00Z');
+  it('counts whole minutes since the lead started waiting (0 when none)', () => {
+    expect(waitMinutes('2026-11-13T04:47:30Z', NOW2)).toBe(12);
+    expect(waitMinutes('2026-11-13T05:00:00Z', NOW2)).toBe(0);
+    expect(waitMinutes('2026-11-13T05:10:00Z', NOW2)).toBe(0);       // a clock a little ahead never gives a negative time
+    expect(waitMinutes(null, NOW2)).toBe(0);
+  });
+  it('writes it the way the team reads it', () => {
+    expect(waitLabel(0)).toBe('baru saja');
+    expect(waitLabel(12)).toBe('12 mnt');
+    expect(waitLabel(65)).toBe('1 j 5 mnt');
+    expect(waitLabel(120)).toBe('2 j');
+    expect(waitLabel(3000)).toBe('2 hari');
+  });
+  it('green under 5 minutes, amber under 15, red after', () => {
+    expect([0, 4, 5, 14, 15, 90].map(waitTone)).toEqual(['ok', 'ok', 'warn', 'warn', 'bad', 'bad']);
+  });
+});
