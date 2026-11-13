@@ -36,6 +36,10 @@ export interface Thread {
   deals: Array<{ id: string; title: string; stage: string; value: number; sales: string | null; salesId?: string | null }>;
   labels: ChatLabel[];
   reminders: ReminderItem[];
+  /** What the lead answered to "Ask a question" boxes of the flows. */
+  answers?: Array<{ field: string; value: string }>;
+  /** A flow stopped in this chat: waiting for the lead's answer, or for a Wait box's time. */
+  flowWaiting?: { flow: string; kind: 'answer' | 'wait'; field: string | null; until: string | null } | null;
 }
 
 export interface Agent { id: string; name: string; role: string }

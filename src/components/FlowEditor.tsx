@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ACTIONS, CONDITIONS, NODE_LABEL, TRIGGERS, isCondition, isTrigger, planFlow, validateGraph, type FlowContext, type FlowEdge, type FlowNode, type Graph, type NodeType, type Port, type PlannedAction } from '@/lib/flow';
+import { ACTIONS, CONDITIONS, MAX_WAIT_MINUTES, NODE_LABEL, TRIGGERS, cleanField, isCondition, isTrigger, isValidField, planFlow, resumeFlow, validateGraph, type FlowContext, type FlowNode, type Graph, type NodeType, type Plan, type Port, type PlannedAction } from '@/lib/flow';
 import { CHANNELS, type Agent, type FlowFull, type LeadSource } from '@/lib/types';
 
 /**
@@ -17,8 +17,8 @@ const CANVAS_H = 1500;
 
 const COLOR: Record<NodeType, string> = {
   trigger_new_lead: '#2f9bf0', trigger_keyword: '#2f9bf0',
-  cond_source: '#f59e0b', cond_keyword: '#f59e0b', cond_hours: '#f59e0b', cond_client: '#f59e0b',
-  act_send: '#16a37a', act_ai: '#0ea5a5', act_assign: '#14b8a6', act_assign_client_sales: '#14b8a6', act_handover: '#e0455b', act_note: '#8b7cf6',
+  cond_source: '#f59e0b', cond_keyword: '#f59e0b', cond_hours: '#f59e0b', cond_client: '#f59e0b', cond_answer: '#f59e0b',
+  act_send: '#16a37a', act_ask: '#0b8a8f', act_wait: '#64748b', act_ai: '#0ea5a5', act_assign: '#14b8a6', act_assign_client_sales: '#14b8a6', act_handover: '#e0455b', act_note: '#8b7cf6',
 };
 const GROUP_TITLE = { trigger: 'Starts the flow', condition: 'Asks a question (yes / no)', action: 'Does something' } as const;
 const portY = (p: Port) => (p === 'yes' ? 0.3 : p === 'no' ? 0.72 : 0.5);
@@ -28,6 +28,16 @@ const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => { co
 const newId = () => `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}...` : s);
 
+/** "45 minutes", "2 hours", "1 day 3 hours". */
+export function waitText(min: number): string {
+  const m = Math.max(1, Math.round(Number(min) || 0));
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  if (m < 60) return plural(m, 'minute');
+  if (m < 1440) return m % 60 ? `${plural(Math.floor(m / 60), 'hour')} ${plural(m % 60, 'minute')}` : plural(m / 60, 'hour');
+  const d = Math.floor(m / 1440); const h = Math.round((m % 1440) / 60);
+  return h ? `${plural(d, 'day')} ${plural(h, 'hour')}` : plural(d, 'day');
+}
+
 function summary(n: FlowNode, agents: Agent[]): string {
   const d = n.data || {};
   switch (n.type) {
@@ -36,7 +46,10 @@ function summary(n: FlowNode, agents: Agent[]): string {
     case 'cond_source': { const c = (Array.isArray(d.channels) ? d.channels : []).map((k: string) => CHANNELS.find((x) => x.key === k)?.label ?? k); return c.length ? c.join(', ') : d.sourceId ? 'One chosen ad' : 'Pick a channel'; }
     case 'cond_hours': return 'Yes = inside team hours';
     case 'cond_client': return 'Yes = the number is a client in the ERP';
+    case 'cond_answer': return cleanField(d.field) ? `{${cleanField(d.field)}} has: ${clip(String(d.keywords || '').trim() || '...', 44)}` : 'Pick the answer to check';
     case 'act_send': return String(d.text || '').trim() ? clip(String(d.text), 70) : 'Write the message';
+    case 'act_ask': return String(d.text || '').trim() ? `${clip(String(d.text), 52)} → {${cleanField(d.field) || '?'}}` : 'Write the question';
+    case 'act_wait': return `${waitText(Number(d.minutes) || 0)}${d.ifReply === 'continue' ? ', then go on' : ' without a reply'}`;
     case 'act_ai': return 'The AI answers from the AI Kamus';
     case 'act_assign': return d.userName || agents.find((a) => a.id === d.userId)?.name || 'Pick a salesperson';
     case 'act_assign_client_sales': return "The client's own salesperson";
@@ -48,6 +61,7 @@ function summary(n: FlowNode, agents: Agent[]): string {
 const actionText = (a: PlannedAction, agents: Agent[]): string => {
   switch (a.kind) {
     case 'send': return `Sends: "${a.text}"`;
+    case 'ask': return `Asks: "${a.text}"`;
     case 'ai': return 'The AI answers (from the AI Kamus)';
     case 'assign': return `Gives the chat to ${a.userName || agents.find((x) => x.id === a.userId)?.name || 'a salesperson'}`;
     case 'assign_client_sales': return "Gives the chat to the client's salesperson";
@@ -82,6 +96,7 @@ export function FlowEditor({ initial, agents, sources, canEdit, saving, error, w
   const [connecting, setConnecting] = useState<{ from: string; port: Port; x: number; y: number } | null>(null);
   const [panel, setPanel] = useState<'box' | 'try'>('box');
   const [test, setTest] = useState<{ message: string; isFirst: boolean; inHours: boolean; isClient: boolean; channel: string }>({ message: 'Halo kak, saya mau tanya paket', isFirst: true, inHours: true, isClient: false, channel: 'meta_ads' });
+  const [tryAnswers, setTryAnswers] = useState<Record<string, string>>({});
   const canvasRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
@@ -91,9 +106,28 @@ export function FlowEditor({ initial, agents, sources, canEdit, saving, error, w
 
   const validation = useMemo(() => validateGraph(graph), [graph]);
   const ctx: FlowContext = useMemo(() => ({ message: test.message, isFirst: test.isFirst, sourceChannel: test.channel || null, sourceId: null, inHours: test.inHours, isClient: test.isClient, leadName: 'Budi Santoso', persona: 'Fefe', company: 'Prof Toko Online' }), [test]);
-  const plan = useMemo(() => planFlow(graph, ctx), [graph, ctx]);
-  const onPath = useMemo(() => new Set(panel === 'try' && plan.matched ? plan.path : []), [panel, plan]);
-  const answerOf = useMemo(() => new Map(panel === 'try' ? plan.decisions.map((d) => [d.nodeId, d.answer]) : []), [plan, panel]);
+  // "Try it" follows the flow through its stops: after a question it goes on with the sample answer typed below, after a Wait as if the time is up.
+  const steps = useMemo(() => {
+    const out: Plan[] = [];
+    const answers: Record<string, string> = {};
+    let p = planFlow(graph, { ...ctx, answers });
+    out.push(p);
+    for (let i = 0; i < 8 && p.matched && p.pause; i++) {
+      const pause = p.pause;
+      if (pause.kind === 'answer') {
+        const a = (tryAnswers[pause.field] ?? '').trim();
+        if (!a) break;
+        answers[pause.field] = a;
+      }
+      p = resumeFlow(graph, { ...ctx, message: pause.kind === 'answer' ? answers[pause.field] : '', isFirst: false, answers: { ...answers } }, pause.nodeId);
+      out.push(p);
+    }
+    return out;
+  }, [graph, ctx, tryAnswers]);
+  const plan = steps[0];
+  const onPath = useMemo(() => new Set(panel === 'try' && plan.matched ? steps.flatMap((x) => x.path) : []), [panel, plan, steps]);
+  const answerOf = useMemo(() => new Map(panel === 'try' ? steps.flatMap((x) => x.decisions).map((d) => [d.nodeId, d.answer]) : []), [steps, panel]);
+  const askedFields = useMemo(() => [...new Set(graph.nodes.filter((n) => n.type === 'act_ask').map((n) => cleanField(n.data?.field)).filter(isValidField))], [graph.nodes]);
 
   const nodeById = useCallback((id: string) => graph.nodes.find((n) => n.id === id), [graph.nodes]);
   const sel = selected ? nodeById(selected) : undefined;
@@ -110,7 +144,7 @@ export function FlowEditor({ initial, agents, sources, canEdit, saving, error, w
     const n = graph.nodes.length;
     const x = Math.round(((el?.scrollLeft ?? 0) + 60 + (n % 5) * 34) / 8) * 8;
     const y = Math.round(((el?.scrollTop ?? 0) + 50 + (n % 6) * 40) / 8) * 8;
-    const node: FlowNode = { id: newId(), type, x, y, data: type === 'act_send' ? { text: '' } : {} };
+    const node: FlowNode = { id: newId(), type, x, y, data: type === 'act_send' ? { text: '' } : type === 'act_ask' ? { text: '', field: '' } : type === 'act_wait' ? { minutes: 60, ifReply: 'stop' } : type === 'cond_answer' ? { field: askedFields[0] ?? '', keywords: '' } : {} };
     setGraph((g) => ({ ...g, nodes: [...g.nodes, node] })); setSelected(node.id); setSelectedEdge(null); setPanel('box');
   };
 
@@ -279,7 +313,7 @@ export function FlowEditor({ initial, agents, sources, canEdit, saving, error, w
               <label className="block text-[12px] font-semibold text-ink-soft">What this flow is for<input className={`${field} mt-1`} value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canEdit} maxLength={300} placeholder="Optional" /></label>
               <hr className="border-line" />
               {!sel && <p className="text-[12.5px] text-ink-soft">Click a box to set it up.</p>}
-              {sel && <BoxSettings node={sel} agents={agents} sources={sources} canEdit={canEdit} setData={(d) => setData(sel.id, d)} onDelete={() => removeNode(sel.id)} />}
+              {sel && <BoxSettings node={sel} agents={agents} sources={sources} fields={askedFields} canEdit={canEdit} setData={(d) => setData(sel.id, d)} onDelete={() => removeNode(sel.id)} />}
               <ProblemList errors={validation.errors} warnings={validation.warnings} />
             </div>
           )}
@@ -299,14 +333,31 @@ export function FlowEditor({ initial, agents, sources, canEdit, saving, error, w
               <hr className="border-line" />
               <h3 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-soft">What would happen</h3>
               {!plan.matched ? <p className="rounded-lg bg-[#eef2f6] px-3 py-2 text-[12.5px] text-ink-soft">This flow does not start for that message, so the normal bot answers as usual.</p> : (
-                <>
-                  <ol className="space-y-1.5">
-                    {plan.actions.length === 0 && <li className="text-[12.5px] text-ink-soft">The flow starts but ends before any action.</li>}
-                    {plan.actions.map((a, i) => <li key={i} className="rounded-lg border border-line bg-white px-3 py-2 text-[12.5px]"><span className="mr-1 font-extrabold text-brand-dark">{i + 1}.</span>{actionText(a, agents)}</li>)}
-                  </ol>
-                  <p className={`rounded-lg px-3 py-2 text-[12.5px] font-semibold ${plan.handled ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn'}`}>{plan.handled ? 'The flow answers the lead, so the normal bot stays quiet.' : 'The flow does not answer the lead, so the normal bot still replies.'}</p>
-                </>
+                <ol className="space-y-1.5">
+                  {steps.map((st, si) => (
+                    <React.Fragment key={si}>
+                      {st.actions.map((a, i) => <li key={`${si}-${i}`} className="rounded-lg border border-line bg-white px-3 py-2 text-[12.5px]">{actionText(a, agents)}</li>)}
+                      {si === 0 && st.actions.length === 0 && !st.pause && <li className="text-[12.5px] text-ink-soft">The flow starts but ends before any action.</li>}
+                      {st.pause?.kind === 'answer' && (
+                        <li className="rounded-lg border border-dashed border-[#0b8a8f] bg-[#ecf8f8] px-3 py-2 text-[12.5px]">
+                          <p className="font-bold text-[#0b6d71]">Waits for the answer, saved as {'{'}{st.pause.field}{'}'}</p>
+                          <label className="mt-1.5 block text-[11.5px] font-semibold text-ink-soft">The lead answers
+                            <input className={`${field} mt-1`} value={tryAnswers[st.pause.field] ?? ''} placeholder="Type a sample answer to see what comes next" onChange={(e) => { const f = (st.pause as { field: string }).field; setTryAnswers((x) => ({ ...x, [f]: e.target.value })); }} />
+                          </label>
+                        </li>
+                      )}
+                      {st.pause?.kind === 'wait' && (
+                        <li className="rounded-lg border border-dashed border-[#64748b] bg-[#f1f4f8] px-3 py-2 text-[12.5px]">
+                          <p className="font-bold text-[#475569]">Waits {waitText(st.pause.minutes)}</p>
+                          <p className="text-[11.5px] text-ink-soft">{st.pause.ifReply === 'stop' ? 'If the lead replies before then, the flow ends there. If not:' : 'Whether the lead replies or not, it then goes on:'}</p>
+                        </li>
+                      )}
+                    </React.Fragment>
+                  ))}
+                  {steps[steps.length - 1].matched && !steps[steps.length - 1].pause && steps.length > 1 && <li className="text-[11.5px] font-semibold text-ink-soft">The flow ends here.</li>}
+                </ol>
               )}
+              {plan.matched && <p className={`rounded-lg px-3 py-2 text-[12.5px] font-semibold ${plan.handled ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn'}`}>{plan.handled ? 'The flow answers the first message, so the normal bot stays quiet.' : 'The flow does not answer the lead, so the normal bot still replies.'}</p>}
             </div>
           )}
         </aside>
@@ -327,9 +378,13 @@ function ProblemList({ errors, warnings }: { errors: string[]; warnings: string[
 }
 
 const VARS = ['{nama}', '{bot}', '{perusahaan}'];
+const UNITS = [{ key: 'm', label: 'minutes', f: 1 }, { key: 'h', label: 'hours', f: 60 }, { key: 'd', label: 'days', f: 1440 }] as const;
 
-function BoxSettings({ node, agents, sources, canEdit, setData, onDelete }: { node: FlowNode; agents: Agent[]; sources: LeadSource[]; canEdit: boolean; setData: (d: Record<string, any>) => void; onDelete: () => void }) {
+function BoxSettings({ node, agents, sources, fields, canEdit, setData, onDelete }: { node: FlowNode; agents: Agent[]; sources: LeadSource[]; fields: string[]; canEdit: boolean; setData: (d: Record<string, any>) => void; onDelete: () => void }) {
   const d = node.data || {};
+  const vars = [...VARS, ...fields.filter((f) => !(node.type === 'act_ask' && f === cleanField(d.field))).map((f) => `{${f}}`)];
+  const minutes = Math.max(1, Math.round(Number(d.minutes) || 60));
+  const unit = minutes % 1440 === 0 ? UNITS[2] : minutes % 60 === 0 ? UNITS[1] : UNITS[0];
   const taRef = useRef<HTMLTextAreaElement>(null);
   const insert = (v: string) => { const el = taRef.current; const t = String(d.text ?? ''); const a = el?.selectionStart ?? t.length; setData({ text: t.slice(0, a) + v + t.slice(el?.selectionEnd ?? a) }); };
   return (
@@ -364,15 +419,55 @@ function BoxSettings({ node, agents, sources, canEdit, setData, onDelete }: { no
       {node.type === 'cond_hours' && <p className="text-[12.5px] text-ink-soft">Yes when the team is open now (the hours are set in AI Kamus → Bot script &amp; settings). Otherwise No.</p>}
       {node.type === 'cond_client' && <p className="text-[12.5px] text-ink-soft">Yes when the lead&apos;s phone number belongs to a client in the ERP. Otherwise No.</p>}
 
-      {(node.type === 'act_send' || node.type === 'act_note') && (
+      {(node.type === 'act_send' || node.type === 'act_note' || node.type === 'act_ask') && (
         <div>
-          <label className="block text-[12px] font-semibold text-ink-soft">{node.type === 'act_send' ? 'Message to the lead' : 'Note for the team (the lead never sees it)'}
+          <label className="block text-[12px] font-semibold text-ink-soft">{node.type === 'act_send' ? 'Message to the lead' : node.type === 'act_ask' ? 'The question to the lead' : 'Note for the team (the lead never sees it)'}
             <textarea ref={taRef} className={`${field} mt-1 h-32 resize-none`} value={d.text ?? ''} disabled={!canEdit} maxLength={1000} onChange={(e) => setData({ text: e.target.value })} />
           </label>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-soft">Add:
-            {VARS.map((v) => <button key={v} type="button" disabled={!canEdit} onClick={() => insert(v)} className="rounded-full bg-brand-soft px-2 py-0.5 font-bold text-brand-dark hover:bg-[#d4e9fb]">{v}</button>)}
+            {vars.map((v) => <button key={v} type="button" disabled={!canEdit} onClick={() => insert(v)} className="rounded-full bg-brand-soft px-2 py-0.5 font-bold text-brand-dark hover:bg-[#d4e9fb]">{v}</button>)}
           </div>
-          <p className="mt-1 text-[11px] text-ink-soft">{'{nama}'} = the lead&apos;s first name, {'{bot}'} = the bot&apos;s name, {'{perusahaan}'} = the company.</p>
+          <p className="mt-1 text-[11px] text-ink-soft">{'{nama}'} = the lead&apos;s first name, {'{bot}'} = the bot&apos;s name, {'{perusahaan}'} = the company{fields.length ? ', and each saved answer by its name (left out if the lead has not answered it)' : ''}.</p>
+        </div>
+      )}
+      {node.type === 'act_ask' && (
+        <label className="block text-[12px] font-semibold text-ink-soft">Save the answer as
+          <input className={`${field} mt-1`} value={d.field ?? ''} disabled={!canEdit} maxLength={30} placeholder="toko" onChange={(e) => setData({ field: cleanField(e.target.value) })} />
+          <span className="mt-1 block text-[11px] font-normal">A short name, like toko, budget or omzet. The lead&apos;s next message is saved under it, shown on the chat, and can be used as {`{${cleanField(d.field) || 'toko'}}`} in later messages. The flow waits up to a day for the answer.</span>
+        </label>
+      )}
+      {node.type === 'cond_answer' && (
+        <div className="space-y-2">
+          <label className="block text-[12px] font-semibold text-ink-soft">The answer to check
+            <select className={`${field} mt-1`} value={cleanField(d.field)} disabled={!canEdit} onChange={(e) => setData({ field: e.target.value })}>
+              <option value="">Pick one</option>{fields.map((f) => <option key={f} value={f}>{`{${f}}`}</option>)}
+            </select>
+            {fields.length === 0 && <span className="mt-1 block text-[11px] font-normal text-warn">Add an &quot;Ask a question&quot; box first, and name its answer.</span>}
+          </label>
+          <label className="block text-[12px] font-semibold text-ink-soft">Yes when it has any of these words
+            <textarea className={`${field} mt-1 h-20 resize-none`} value={d.keywords ?? ''} disabled={!canEdit} onChange={(e) => setData({ keywords: e.target.value })} placeholder="fashion, baju, hijab" />
+          </label>
+        </div>
+      )}
+      {node.type === 'act_wait' && (
+        <div className="space-y-3">
+          <div>
+            <p className="text-[12px] font-semibold text-ink-soft">Wait for</p>
+            <div className="mt-1 flex gap-2">
+              <input type="number" min={1} className={`${field} w-24`} value={Math.round(minutes / unit.f)} disabled={!canEdit} onChange={(e) => setData({ minutes: Math.min(MAX_WAIT_MINUTES, Math.max(1, Math.round(Number(e.target.value) || 1)) * unit.f) })} aria-label="How long" />
+              <select className={field} value={unit.key} disabled={!canEdit} onChange={(e) => { const u = UNITS.find((x) => x.key === e.target.value)!; setData({ minutes: Math.min(MAX_WAIT_MINUTES, Math.max(1, Math.round(minutes / unit.f)) * u.f) }); }} aria-label="Unit">
+                {UNITS.map((u) => <option key={u.key} value={u.key}>{u.label}</option>)}
+              </select>
+            </div>
+            <span className="mt-1 block text-[11px] text-ink-soft">Up to 3 days. The time is checked once a minute.</span>
+          </div>
+          <fieldset className="space-y-1.5">
+            <legend className="text-[12px] font-semibold text-ink-soft">If the lead replies while the flow waits</legend>
+            {([['stop', 'End the flow (for a nudge when the lead is quiet)'], ['continue', 'Keep going anyway (a plain pause)']] as const).map(([k, label]) => (
+              <label key={k} className="flex items-start gap-2 text-[12.5px] font-semibold"><input type="radio" name={`reply-${node.id}`} disabled={!canEdit} checked={(d.ifReply === 'continue' ? 'continue' : 'stop') === k} onChange={() => setData({ ifReply: k })} className="mt-0.5 h-4 w-4 accent-[#2f9bf0]" />{label}</label>
+            ))}
+            <span className="block text-[11px] text-ink-soft">While it waits, the normal bot answers anything the lead writes. After a Wait the AI cannot answer (there is no new message), so use &quot;Send a message&quot;.</span>
+          </fieldset>
         </div>
       )}
       {node.type === 'act_ai' && <p className="text-[12.5px] text-ink-soft">The AI writes the reply from the AI Kamus (script and Sales Deck), the same as the normal bot. After this box the flow usually ends.</p>}
