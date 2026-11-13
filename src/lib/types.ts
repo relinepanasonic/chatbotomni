@@ -59,3 +59,12 @@ export interface SourceRow { key: string; label: string; channel: Channel | 'unk
 export interface ChannelRow { channel: Channel | 'unknown'; leads: number; clients: number; deals: number; won: number; wonValue: number }
 export interface UnmatchedChat { group_id: string; name: string; first_message: string; at: string }
 export interface SourceReport { days: number; rows: SourceRow[]; channels: ChannelRow[]; total: Omit<SourceRow, 'key' | 'label' | 'channel'>; unmatched: UnmatchedChat[]; sources: number }
+
+/** Scenario flows, as the ERP returns them. The drawing itself is typed in lib/flow.ts. */
+export interface FlowListItem {
+  id: string; name: string; description: string | null; active: boolean; boxes: number; trigger: string | null; runs7d: number; problems: number;
+  created_by: string | null; created_at: string; updated_at: string; updated_by: string | null;
+}
+export interface FlowsResponse { flows: FlowListItem[]; canEdit: boolean }
+export interface FlowFull { id: string; name: string; description: string | null; active: boolean; graph: import('./flow').Graph; updated_at: string; updated_by: string | null }
+export interface FlowRun { id: string; flow_id: string | null; flow_name: string; chat: string; trigger_text: string | null; actions: string[] | null; handled: boolean; outcome: string; detail: string | null; created_at: string }
