@@ -36,3 +36,25 @@ export function waitLabel(min: number): string {
 export type WaitTone = 'ok' | 'warn' | 'bad';
 /** Green until 5 minutes, amber until 15, then red: the team's reply-time target. */
 export const waitTone = (min: number): WaitTone => (min >= 15 ? 'bad' : min >= 5 ? 'warn' : 'ok');
+
+/** Whole days since `iso` (0 for a future time). */
+export const daysSince = (iso: string, now = new Date()): number => Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 86400000));
+
+/** "hari ini", "kemarin", "5 hari lalu", "2 bulan lalu": how long ago a document's text was last changed. */
+export function ageLabel(iso: string, now = new Date()): string {
+  const d = daysSince(iso, now);
+  if (d === 0) return 'hari ini';
+  if (d === 1) return 'kemarin';
+  if (d < 60) return `${d} hari lalu`;
+  return `${Math.floor(d / 30)} bulan lalu`;
+}
+
+/** Prices are "old" after 30 days: the page warns, because the AI keeps quoting what it was given. */
+export const STALE_DAYS = 30;
+export const isStale = (iso: string, now = new Date()): boolean => daysSince(iso, now) >= STALE_DAYS;
+
+/** "3,4 MB", "820 KB". */
+export function sizeLabel(bytes: number | null): string {
+  if (!bytes) return '';
+  return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}

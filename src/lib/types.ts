@@ -30,3 +30,14 @@ export interface Thread {
 
 export interface Agent { id: string; name: string; role: string }
 export interface QuickReply { id: string; shortcut: string; title: string; body: string }
+
+/** The AI Bible (the Sales Deck and other documents the AI reads), as the ERP returns it. */
+export interface BibleDoc {
+  id: string; title: string; kind: string; file_name: string | null; file_size: number | null;
+  status: 'processing' | 'ready' | 'failed'; error: string | null; active: boolean; version: number; replaces: string | null;
+  uploaded_by: string | null; created_at: string; text_updated_at: string; text_updated_by: string | null; chars: number;
+}
+export interface BibleDocFull extends BibleDoc { text: string }
+export interface BotSettings { enabled: boolean; persona_name: string; company_name: string; hours_from: string; hours_to: string; max_replies: number; knowledge: string }
+export interface BibleResponse { docs: BibleDoc[]; settings: BotSettings; canEdit: boolean }
+export interface UploadTarget { ok: true; path: string; token: string; bucket: string }

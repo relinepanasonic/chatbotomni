@@ -43,3 +43,24 @@ describe('waiting time', () => {
     expect([0, 4, 5, 14, 15, 90].map(waitTone)).toEqual(['ok', 'ok', 'warn', 'warn', 'bad', 'bad']);
   });
 });
+
+import { ageLabel, isStale, sizeLabel } from './format';
+
+describe('document age', () => {
+  const N = new Date('2026-11-13T05:00:00Z');
+  it('says how long ago the text changed', () => {
+    expect(ageLabel('2026-11-13T01:00:00Z', N)).toBe('hari ini');
+    expect(ageLabel('2026-11-12T01:00:00Z', N)).toBe('kemarin');
+    expect(ageLabel('2026-11-08T01:00:00Z', N)).toBe('5 hari lalu');
+    expect(ageLabel('2026-08-01T01:00:00Z', N)).toBe('3 bulan lalu');
+  });
+  it('warns from 30 days', () => {
+    expect(isStale('2026-10-20T05:00:00Z', N)).toBe(false);
+    expect(isStale('2026-10-14T05:00:00Z', N)).toBe(true);
+  });
+  it('writes file sizes', () => {
+    expect(sizeLabel(3_400_000)).toBe('3,2 MB');
+    expect(sizeLabel(820_000)).toBe('801 KB');
+    expect(sizeLabel(null)).toBe('');
+  });
+});
