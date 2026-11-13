@@ -19,11 +19,12 @@ export async function supabaseServer() {
 
 export const isDemo = () => process.env.DEMO === '1' && process.env.NODE_ENV !== 'production';
 
-/** The signed-in person's access token (the ERP checks it on every call), or null. */
+/**
+ * The signed-in person's access token (the ERP checks it on every call), or null. It is read from the login cookie (refreshed when it has
+ * expired) without asking Supabase again: the ERP verifies the token on each call, so a second check here would only add a slow round trip.
+ */
 export async function accessToken(): Promise<string | null> {
   const supabase = await supabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
   const { data: { session } } = await supabase.auth.getSession();
   return session?.access_token ?? null;
 }
