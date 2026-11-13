@@ -134,7 +134,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
       id: chat.id, phone: chat.phone, name: chat.name, messages: [...chat.messages].sort((x, y) => x.at.localeCompare(y.at)),
       bot: { status: chat.status, replies: chat.botReplies, reason: chat.status === 'human' ? 'A salesperson replied.' : null, lead: chat.lead },
       botLog: chat.messages.filter((m) => m.sender === 'bot').map((m) => ({ reply: m.text, handoff: /tim kami/i.test(m.text), ok: true, detail: null, created_at: m.at })),
-      assignedTo: chat.assignedTo, resolved: summary(chat).resolved, source: srcOf(chat), sourceId: chat.src?.sourceId ?? null, firstMessage: chat.src?.first ?? null, client: chat.client ?? null, deals: chat.deals ?? [], labels: labelsOf(chat), reminders: remsOf(chat),
+      assignedTo: chat.assignedTo, resolved: summary(chat).resolved, source: srcOf(chat), sourceId: chat.src?.sourceId ?? null, firstMessage: chat.src?.first ?? null, client: chat.client ?? null, deals: chat.deals ?? [], labels: labelsOf(chat), reminders: remsOf(chat), answers: chat.status === 'bot' ? [{ field: 'toko', value: 'Jual hijab dan gamis' }] : [], flowWaiting: chat.status === 'bot' && chat.botReplies <= 1 ? { flow: 'Quiet lead: one nudge after an hour', kind: 'wait', field: null, until: new Date(Date.now() + 40 * 60000).toISOString() } : null,
     };
     return json(t);
   }
@@ -300,9 +300,10 @@ function sourcesDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any,
 }
 
 // ---------------------------------------------------------------- scenario flows (demo)
-const demoFlows: FlowFull[] = exampleFlows().slice(0, 2).map((f, i) => ({ id: `f${i + 1}`, name: f.name, description: f.description, active: i === 0, graph: f.graph, updated_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(), updated_by: 'Nico' }));
+const demoFlows: FlowFull[] = exampleFlows().filter((_, i) => i === 0 || i === 3 || i === 4).map((f, i) => ({ id: `f${i + 1}`, name: f.name, description: f.description, active: i === 0, graph: f.graph, updated_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(), updated_by: 'Nico' }));
 const demoRuns: FlowRun[] = [
   { id: 'r1', flow_id: 'f1', flow_name: demoFlows[0].name, chat: 'Budi Santoso', trigger_text: 'Halo kak, saya mau tanya Paket Sultan dari iklan Instagram', actions: ['send'], handled: true, outcome: 'ok', detail: 'sent a message', created_at: new Date(Date.now() - 12 * 60000).toISOString() },
+  { id: 'r3', flow_id: 'f2', flow_name: demoFlows[1].name, chat: 'Sari Dewi', trigger_text: 'Jual hijab dan gamis kak', actions: ['answer', 'send'], handled: true, outcome: 'ok', detail: 'saved the answer as toko; sent a message', created_at: new Date(Date.now() - 3 * 3600000).toISOString() },
   { id: 'r2', flow_id: 'f1', flow_name: demoFlows[0].name, chat: 'Hendra Wijaya', trigger_text: 'Selamat pagi, saya lihat iklan kakak di Instagram', actions: ['ai'], handled: true, outcome: 'ok', detail: 'AI: replied', created_at: new Date(Date.now() - 26 * 3600000).toISOString() },
 ];
 
@@ -326,6 +327,11 @@ function flowsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): 
     let created = 0;
     for (const ex of exampleFlows()) if (!demoFlows.some((f) => f.name === ex.name)) { demoFlows.push({ id: `f${Date.now()}${created}`, name: ex.name, description: ex.description, active: false, graph: ex.graph, updated_at: new Date().toISOString(), updated_by: 'Demo' }); created++; }
     return json({ ok: true, created });
+  }
+  if (parts[1] === 'order' && method === 'POST') {
+    const ids: string[] = Array.isArray(b?.ids) ? b.ids.map(String) : [];
+    demoFlows.sort((x, y) => (ids.indexOf(x.id) + 1 || 999) - (ids.indexOf(y.id) + 1 || 999));
+    return json({ ok: true });
   }
   if (parts[1] === 'runs') return json({ runs: [...demoRuns].sort((x, y) => y.created_at.localeCompare(x.created_at)) });
   const f = demoFlows.find((x) => x.id === parts[1]);

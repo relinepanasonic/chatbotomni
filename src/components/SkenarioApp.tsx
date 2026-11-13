@@ -83,6 +83,16 @@ export function SkenarioApp({ demo }: { demo: boolean }) {
     const r = await api<{ ok: true }>(`/flows/${encodeURIComponent(f.id)}`, { method: 'DELETE' });
     if (!r.ok) say('error', r.error); else { say('ok', 'Deleted.'); await load(); }
   };
+  const move = async (i: number, by: -1 | 1) => {
+    if (!data) return;
+    const list = [...data.flows];
+    const j = i + by;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    setData({ ...data, flows: list });                                   // show it at once; the server keeps the same order
+    const r = await api<{ ok: true }>('/flows/order', { method: 'POST', body: JSON.stringify({ ids: list.map((f) => f.id) }) });
+    if (!r.ok) { say('error', r.error); await load(); }
+  };
   const examples = async () => {
     const r = await api<{ ok: true; created: number }>('/flows/examples', { method: 'POST' });
     if (!r.ok) say('error', r.error); else { say('ok', r.data.created ? `${r.data.created} example flows were added, all switched OFF. Open one, try it, then switch it on.` : 'The example flows are already there.'); await load(); }
@@ -125,14 +135,25 @@ export function SkenarioApp({ demo }: { demo: boolean }) {
               {canEdit ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-brand/50 bg-white p-4">
                   <div><p className="text-[14px] font-extrabold">Your flows</p><p className="text-[12.5px] text-ink-soft">A new flow starts switched OFF. Try it with a sample message, then switch it on.</p></div>
-                  <div className="flex gap-2"><button className={btnGhost} onClick={examples}>Add the 4 example flows</button><button className={btnPrimary} onClick={() => void open(null)}>New flow</button></div>
+                  <div className="flex gap-2"><button className={btnGhost} onClick={examples}>Add the example flows</button><button className={btnPrimary} onClick={() => void open(null)}>New flow</button></div>
                 </div>
               ) : <p className="rounded-xl bg-white px-4 py-3 text-[12.5px] text-ink-soft">You can look at the flows and try them. Only admins can change them.</p>}
 
-              {data.flows.length === 0 && <p className="rounded-2xl bg-white p-8 text-center text-[13.5px] text-ink-soft">No flows yet. Press &quot;Add the 4 example flows&quot; to start from ready-made ones, or &quot;New flow&quot; to draw your own.</p>}
-              <ul className="space-y-3">
-                {data.flows.map((f) => (
-                  <li key={f.id} className="rounded-2xl border border-line bg-white p-4 shadow-[0_1px_2px_rgba(23,49,77,0.05)]">
+              {data.flows.length === 0 && <p className="rounded-2xl bg-white p-8 text-center text-[13.5px] text-ink-soft">No flows yet. Press &quot;Add the example flows&quot; to start from ready-made ones, or &quot;New flow&quot; to draw your own.</p>}
+              {data.flows.length > 1 && <p className="px-1 text-[12.5px] text-ink-soft">Flows are checked from top to bottom, and only the first one that fits a message runs. Put the most specific flows first.</p>}
+              <ol className="space-y-3">
+                {data.flows.map((f, i) => (
+                  <li key={f.id} className="flex gap-3 rounded-2xl border border-line bg-white p-4 shadow-[0_1px_2px_rgba(23,49,77,0.05)]">
+                    <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-soft text-[12px] font-extrabold text-brand-dark" aria-label={`Checked as number ${i + 1}`}>{i + 1}</span>
+                      {canEdit && data.flows.length > 1 && (
+                        <>
+                          <button onClick={() => void move(i, -1)} disabled={i === 0} aria-label={`Move "${f.name}" up`} title="Check this flow earlier" className="flex h-6 w-6 items-center justify-center rounded-md text-ink-soft hover:bg-brand-soft hover:text-brand-dark disabled:opacity-25"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></button>
+                          <button onClick={() => void move(i, 1)} disabled={i === data.flows.length - 1} aria-label={`Move "${f.name}" down`} title="Check this flow later" className="flex h-6 w-6 items-center justify-center rounded-md text-ink-soft hover:bg-brand-soft hover:text-brand-dark disabled:opacity-25"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>
+                        </>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="flex flex-wrap items-center gap-2 text-[14.5px] font-extrabold">{f.name}
@@ -150,9 +171,10 @@ export function SkenarioApp({ demo }: { demo: boolean }) {
                       <button className={btnGhost} onClick={() => void open(f.id)}>{canEdit ? 'Open and edit' : 'Open'}</button>
                       {canEdit && <button className={`${btnGhost} hover:!border-bad hover:!text-bad`} onClick={() => void remove(f)}>Delete</button>}
                     </div>
+                    </div>
                   </li>
                 ))}
-              </ul>
+              </ol>
             </section>
           )}
 

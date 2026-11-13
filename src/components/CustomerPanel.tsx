@@ -183,6 +183,7 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
             {thread?.bot.lead?.name && <Row k="Name (told the bot)" v={thread.bot.lead.name} />}
             {thread?.bot.lead?.store && <Row k="Store" v={thread.bot.lead.store} />}
             {thread?.bot.lead?.need && <Row k="Needs" v={thread.bot.lead.need} />}
+            {(thread?.answers ?? []).map((a) => <Row key={a.field} k={`Answered: ${a.field}`} v={a.value} />)}
           </dl>
         </Fold>
 
@@ -206,6 +207,7 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
           <dl className="space-y-1.5 text-[12.5px]">
             <Row k="Messages sent" v={String(thread?.bot.replies ?? current.botReplies)} />
             {thread?.bot.reason && <Row k="Why it stopped" v={thread.bot.reason} />}
+            {thread?.flowWaiting && <Row k={`Flow "${thread.flowWaiting.flow}"`} v={thread.flowWaiting.kind === 'answer' ? `waiting for the answer (${thread.flowWaiting.field})` : `waiting until ${thread.flowWaiting.until ? timeLabel(thread.flowWaiting.until) : 'later'}`} />}
           </dl>
           {status !== 'off' && <button onClick={() => void onAct('status', { status: 'off' })} className={`${btnText} mt-2`}>Switch the bot off for this chat</button>}
         </Fold>
