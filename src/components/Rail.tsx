@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 
 /** The left sidebar: the app's own pages only (nothing leads back to the ERP). */
-export type RailPage = 'inbox' | 'kamus' | 'sumber' | 'skenario' | 'statistik';
+export type RailPage = 'inbox' | 'kamus' | 'sumber' | 'skenario' | 'statistik' | 'jadwal' | 'broadcast';
 
 const PATHS = {
   inbox: 'M3 13l2.5-7.5A2 2 0 017.4 4h9.2a2 2 0 011.9 1.5L21 13m-18 0v5a2 2 0 002 2h14a2 2 0 002-2v-5m-18 0h5l1 2h6l1-2h5',
@@ -10,6 +10,8 @@ const PATHS = {
   sumber: 'M3 3v18h18M7 15l4-4 3 3 5-6',
   skenario: 'M5 4h5v5H5V4zm9 11h5v5h-5v-5zM10 6.5h2.5A2.5 2.5 0 0115 9v6',
   statistik: 'M4 20V11M10 20V5M16 20v-8M21 20H3',
+  jadwal: 'M7 3v3m10-3v3M4 8h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zm3 7h3v3H8v-3z',
+  broadcast: 'M4 10v4a1 1 0 001 1h2l5 4V5L7 9H5a1 1 0 00-1 1zm12-2a5 5 0 010 8m2.5-10.5a8.5 8.5 0 010 13',
 };
 
 const Svg = ({ d, size = 22 }: { d: string; size?: number }) => (
@@ -22,6 +24,8 @@ const ITEMS: Array<{ page: RailPage; href: string; label: string; icon: string }
   { page: 'sumber', href: '/sumber', label: 'Sumber Lead', icon: PATHS.sumber },
   { page: 'skenario', href: '/skenario', label: 'Skenario', icon: PATHS.skenario },
   { page: 'statistik', href: '/statistik', label: 'Statistik', icon: PATHS.statistik },
+  { page: 'jadwal', href: '/jadwal', label: 'Jadwal', icon: PATHS.jadwal },
+  { page: 'broadcast', href: '/broadcast', label: 'Broadcast', icon: PATHS.broadcast },
 ];
 
 export function Rail({ active }: { active: RailPage }) {

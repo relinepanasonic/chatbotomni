@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { exampleFlows, isTrigger, validateGraph, type Graph } from './flow';
-import type { FlowFull, FlowListItem, FlowRun } from './types';
+import type { FlowFull, FlowListItem, FlowRun, Meeting, MeetSettings, BroadcastItem, BcSettings } from './types';
 import type { ChatLabel, ReminderItem, Agent, ChatSource, Channel, LeadSource, SourceReport, BibleDocFull, BibleLogEntry, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
 
 /** Made-up chats for previewing the design locally (DEMO=1, never in production). Nothing here touches the ERP or WhatsApp. */
@@ -90,6 +90,16 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     return json({ accounts: [{ id: 'd1', channel: 'whatsapp', name: '+6285758789999', active: true }, { id: 'd2', channel: 'messenger', name: 'Messenger: Prof Toko Online', active: true }, { id: 'd3', channel: 'instagram', name: 'Instagram: @proftokoonline', active: true }],
       meta: { pageToken: true, appSecret: true, verifyToken: true, appId: false, webhookPath: '/api/meta/webhook' }, canEdit: true });
   }
+  if (parts[0] === 'meetings') return meetingsDemo(parts, method, b);
+  if (parts[0] === 'broadcasts') return broadcastsDemo(parts, method, b);
+  if (parts[0] === 'conversations' && parts[2] === 'meeting' && method === 'POST') {
+    const slot = demoSlots().find((x) => x.code === b?.start);
+    if (!slot) return json({ error: 'That time is not free any more. Pick another one.' }, 409);
+    const chat = chats.find((c) => c.id === parts[1]);
+    const m: Meeting = { id: `m${Date.now()}`, group_id: parts[1], lead_name: chat?.name ?? null, store: chat?.lead?.store ?? null, starts_at: slot.code, ends_at: new Date(new Date(slot.code).getTime() + meetSettings.minutes * 60000).toISOString(), status: 'booked', meet_url: 'https://meet.google.com/demo-abcd-efg', booked_by: 'Demo', note: null, created_at: new Date().toISOString(), chat: chat?.name };
+    demoMeetings.push(m);
+    return json({ ok: true, meeting: m, sent: true, detail: 'sent' });
+  }
   if (parts[0] === 'stats') return json(demoStats(Number(url.searchParams.get('days')) || 30));
   if (parts[0] === 'flows') return flowsDemo(parts, method, b);
   if (parts[0] === 'sources') return sourcesDemo(parts, method, b, url);
@@ -144,7 +154,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
       id: chat.id, phone: chat.phone, name: chat.name, messages: [...chat.messages].sort((x, y) => x.at.localeCompare(y.at)),
       bot: { status: chat.status, replies: chat.botReplies, reason: chat.status === 'human' ? 'A salesperson replied.' : null, lead: chat.lead },
       botLog: chat.messages.filter((m) => m.sender === 'bot').map((m) => ({ reply: m.text, handoff: /tim kami/i.test(m.text), ok: true, detail: null, created_at: m.at })),
-      assignedTo: chat.assignedTo, resolved: summary(chat).resolved, source: srcOf(chat), sourceId: chat.src?.sourceId ?? null, firstMessage: chat.src?.first ?? null, client: chat.client ?? null, deals: chat.deals ?? [], labels: labelsOf(chat), reminders: remsOf(chat), answers: chat.status === 'bot' ? [{ field: 'toko', value: 'Jual hijab dan gamis' }] : [], flowWaiting: chat.status === 'bot' && chat.botReplies <= 1 ? { flow: 'Quiet lead: one nudge after an hour', kind: 'wait', field: null, until: new Date(Date.now() + 40 * 60000).toISOString() } : null,
+      assignedTo: chat.assignedTo, resolved: summary(chat).resolved, source: srcOf(chat), sourceId: chat.src?.sourceId ?? null, firstMessage: chat.src?.first ?? null, client: chat.client ?? null, deals: chat.deals ?? [], labels: labelsOf(chat), reminders: remsOf(chat), meeting: meetingOf(chat.id), answers: chat.status === 'bot' ? [{ field: 'toko', value: 'Jual hijab dan gamis' }] : [], flowWaiting: chat.status === 'bot' && chat.botReplies <= 1 ? { flow: 'Quiet lead: one nudge after an hour', kind: 'wait', field: null, until: new Date(Date.now() + 40 * 60000).toISOString() } : null,
     };
     return json(t);
   }
@@ -377,4 +387,58 @@ function demoStats(days: number) {
     funnel: [{ channel: 'meta_ads', chats: 58, leads: 12, won: 4, wonValue: 16000000 }, { channel: 'google_ads', chats: 24, leads: 5, won: 2, wonValue: 6000000 }, { channel: 'unknown', chats: 11, leads: 1, won: 0, wonValue: 0 }],
     now: { waiting: 3, longestWaitMinutes: 19, overdueFollowups: 1 },
   };
+}
+
+// ---------------------------------------------------------------- free consultations (demo)
+const meetSettings: MeetSettings = { enabled: true, days: [1, 2, 3, 4, 5], from: '10:00', to: '17:00', minutes: 30, noticeHours: 3, daysAhead: 7 };
+const atWib = (daysFromNow: number, hhmm: string) => { const d = new Date(Date.now() + daysFromNow * 86400000 + 7 * 3600000); return new Date(`${d.toISOString().slice(0, 10)}T${hhmm}:00+07:00`).toISOString(); };
+const demoMeetings: Meeting[] = [
+  { id: 'm1', group_id: 'c1', lead_name: 'Budi', store: 'Kawat Nyamuk Jaya', starts_at: atWib(1, '10:00'), ends_at: atWib(1, '10:30'), status: 'booked', meet_url: 'https://meet.google.com/abc-defg-hij', booked_by: 'bot', note: null, created_at: new Date().toISOString(), chat: 'Budi Santoso' },
+  { id: 'm2', group_id: 'c7', lead_name: 'Rina', store: 'Rina Hijab Store', starts_at: atWib(2, '14:00'), ends_at: atWib(2, '14:30'), status: 'booked', meet_url: 'https://meet.google.com/xyz-uvwx-rst', booked_by: 'bot', note: null, created_at: new Date().toISOString(), chat: 'Rina Hijab Store' },
+  { id: 'm3', group_id: 'c5', lead_name: 'Hendra', store: 'HW Spareparts', starts_at: atWib(-1, '11:00'), ends_at: atWib(-1, '11:30'), status: 'booked', meet_url: null, booked_by: 'Rani', note: 'Google Calendar is not connected: send the lead a meeting link yourself.', created_at: new Date().toISOString(), chat: 'Hendra Wijaya' },
+];
+function meetingOf(groupId: string) {
+  const m = demoMeetings.find((x) => x.group_id === groupId && x.status === 'booked' && new Date(x.ends_at) > new Date());
+  return m ? { id: m.id, startsAt: m.starts_at, endsAt: m.ends_at, meetUrl: m.meet_url, bookedBy: m.booked_by } : null;
+}
+function demoSlots() {
+  const out: Array<{ code: string; label: string }> = [];
+  for (let d = 1; d <= 5; d++) for (const h of ['10:00', '13:00', '15:30']) {
+    const code = atWib(d, h);
+    if (demoMeetings.some((m) => m.status === 'booked' && m.starts_at === code)) continue;
+    out.push({ code, label: `${new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(code))}, jam ${h.replace(':', '.')} WIB` });
+  }
+  return out;
+}
+function meetingsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
+  if (parts.length === 1) return json({ meetings: [...demoMeetings].sort((x, y) => x.starts_at.localeCompare(y.starts_at)), settings: meetSettings, google: { configured: true, connected: true, email: 'tim.proftoko@gmail.com' }, canEdit: true });
+  if (parts[1] === 'settings') { Object.assign(meetSettings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
+  if (parts[1] === 'slots') return json({ slots: demoSlots() });
+  if (parts[1] === 'google') return method === 'DELETE' ? json({ ok: true }) : json({ ok: true, url: '/jadwal?google=connected' });
+  const m = demoMeetings.find((x) => x.id === parts[1]);
+  if (!m) return json({ error: 'Meeting not found.' }, 404);
+  m.status = b?.status;
+  return json({ ok: true });
+}
+
+// ---------------------------------------------------------------- broadcasts (demo)
+const bcSettings: BcSettings = { dailyMax: 40, from: '09:00', to: '19:00', gapMin: 90, gapMax: 240 };
+const demoBroadcasts: BroadcastItem[] = [
+  { id: 'b1', name: 'Undangan konsultasi gratis', message: 'Hi kak {nama}, ...', status: 'running', total: 128, sent: 52, failed: 1, skipped: 2, left: 73, next_send_at: new Date(Date.now() + 140000).toISOString(), paused_reason: null, created_by: 'Nico', created_at: new Date(Date.now() - 2 * 86400000).toISOString(), finished_at: null },
+  { id: 'b0', name: 'Info paket Oktober', message: 'Halo kak {nama}, ...', status: 'done', total: 96, sent: 94, failed: 0, skipped: 2, left: 0, next_send_at: new Date().toISOString(), paused_reason: null, created_by: 'Nico', created_at: new Date(Date.now() - 20 * 86400000).toISOString(), finished_at: new Date(Date.now() - 17 * 86400000).toISOString() },
+];
+function broadcastsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
+  if (parts.length === 1 && method === 'GET') return json({ broadcasts: demoBroadcasts, settings: bcSettings, sentToday: 17, audience: { count: 131, optedOut: 4, days: 4 }, canEdit: true });
+  if (parts.length === 1 && method === 'POST') {
+    if (demoBroadcasts.some((x) => x.status === 'running' || x.status === 'paused')) return json({ error: 'Another broadcast is still running or paused. Finish or cancel it first, so the daily limit protects the number.' }, 409);
+    demoBroadcasts.unshift({ id: `b${Date.now()}`, name: String(b?.name), message: String(b?.message), status: 'running', total: 131, sent: 0, failed: 0, skipped: 0, left: 131, next_send_at: new Date().toISOString(), paused_reason: null, created_by: 'Demo', created_at: new Date().toISOString(), finished_at: null });
+    return json({ ok: true, total: 131, days: 4 });
+  }
+  if (parts[1] === 'settings') { Object.assign(bcSettings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
+  const x = demoBroadcasts.find((y) => y.id === parts[1]);
+  if (!x) return json({ error: 'Broadcast not found.' }, 404);
+  if (b?.action === 'pause') { x.status = 'paused'; x.paused_reason = 'Paused by the team.'; }
+  if (b?.action === 'resume') { x.status = 'running'; x.paused_reason = null; }
+  if (b?.action === 'cancel') { x.status = 'cancelled'; x.skipped += x.left; x.left = 0; }
+  return json({ ok: true });
 }

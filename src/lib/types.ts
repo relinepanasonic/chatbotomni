@@ -40,6 +40,8 @@ export interface Thread {
   answers?: Array<{ field: string; value: string }>;
   /** A flow stopped in this chat: waiting for the lead's answer, or for a Wait box's time. */
   flowWaiting?: { flow: string; kind: 'answer' | 'wait'; field: string | null; until: string | null } | null;
+  /** The lead's upcoming free consultation, if one is booked. */
+  meeting?: { id: string; startsAt: string; endsAt: string; meetUrl: string | null; bookedBy: string } | null;
 }
 
 export interface Agent { id: string; name: string; role: string }
@@ -92,3 +94,20 @@ export interface Stats {
   funnel: StatsFunnel[];
   now: { waiting: number; longestWaitMinutes: number | null; overdueFollowups: number };
 }
+
+// ---------------------------------------------------------------- free consultations
+export interface MeetSettings { enabled: boolean; days: number[]; from: string; to: string; minutes: number; noticeHours: number; daysAhead: number }
+export interface Meeting {
+  id: string; group_id: string | null; lead_name: string | null; store: string | null; starts_at: string; ends_at: string;
+  status: 'booked' | 'done' | 'no_show' | 'cancelled'; meet_url: string | null; booked_by: string; note: string | null; created_at: string; chat?: string;
+}
+export interface MeetingsResponse { meetings: Meeting[]; settings: MeetSettings; google: { configured: boolean; connected: boolean; email: string | null }; canEdit: boolean }
+export interface FreeSlot { code: string; label: string }
+
+// ---------------------------------------------------------------- broadcasts
+export interface BcSettings { dailyMax: number; from: string; to: string; gapMin: number; gapMax: number }
+export interface BroadcastItem {
+  id: string; name: string; message: string; status: 'running' | 'paused' | 'done' | 'cancelled'; total: number; sent: number; failed: number; skipped: number; left: number;
+  next_send_at: string; paused_reason: string | null; created_by: string | null; created_at: string; finished_at: string | null;
+}
+export interface BroadcastsResponse { broadcasts: BroadcastItem[]; settings: BcSettings; sentToday: number; audience: { count: number; optedOut: number; days: number }; canEdit: boolean }
