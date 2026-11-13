@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { channelLabel, type Agent, type ChatLabel, type ChatStatus, type ConversationSummary, type LeadSource, type ReminderItem, type Thread } from '@/lib/types';
+import React, { useEffect, useState } from 'react';
+import { channelLabel, type Agent, type ChatLabel, type ChatStatus, type ConversationSummary, type LeadSource, type ReminderItem, type Thread, type FreeSlot } from '@/lib/types';
 import { dateTimeLabel, timeLabel } from '@/lib/format';
 import { LABEL_CLASS } from './ChatExtras';
 import { ChannelMark } from './ChannelMark';
@@ -61,7 +61,7 @@ interface Props {
 }
 
 export function CustomerPanel({ current, thread, me, agents, allLabels, leadSources, status, assigned, resolved, onAct, onChanged }: Props) {
-  const [open, setOpen] = useState<'lead' | 'reminder' | null>(null);
+  const [open, setOpen] = useState<'lead' | 'reminder' | 'meeting' | null>(null);
   const [err, setErr] = useState('');
   const [copied, setCopied] = useState(false);
   const name = thread?.client?.name || current.name;
@@ -117,6 +117,21 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
             <button onClick={() => void done(next)} className="shrink-0 rounded-lg bg-white px-2 py-1 text-[11.5px] font-bold text-ok ring-1 ring-ok/30 hover:bg-ok-soft">Done</button>
           </div>
         )}
+
+        {thread?.meeting ? (
+          <div className="flex items-start gap-2.5 rounded-xl border border-ok/30 bg-ok-soft px-3 py-2.5">
+            <span className="mt-0.5 text-ok"><Icon d={I.check} /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12.5px] font-extrabold text-ok">Free consultation booked</p>
+              <p className="text-[12.5px] text-ink">{dateTimeLabel(thread.meeting.startsAt)} WIB</p>
+              <p className="text-[11px] text-ink-soft">Booked by {thread.meeting.bookedBy === 'bot' ? 'the bot' : thread.meeting.bookedBy}{thread.meeting.meetUrl ? '' : '. No Meet link yet: send one yourself.'}</p>
+            </div>
+            {thread.meeting.meetUrl && <a href={thread.meeting.meetUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg bg-white px-2 py-1 text-[11.5px] font-bold text-ok ring-1 ring-ok/30 hover:bg-ok-soft">Open Meet</a>}
+          </div>
+        ) : thread && (
+          <button className={`${btnSecondary} w-full`} onClick={() => setOpen(open === 'meeting' ? null : 'meeting')} aria-expanded={open === 'meeting'}><Icon d={I.bell} size={14} />Book a free consultation</button>
+        )}
+        {open === 'meeting' && thread && !thread.meeting && <MeetingForm groupId={thread.id} onDone={() => { setOpen(null); onChanged(); }} onCancel={() => setOpen(null)} />}
 
         <div className="grid grid-cols-2 gap-2">
           {!deal
@@ -332,6 +347,39 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const localInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const at = (days: number, hour: number) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return d; };
 const PRESETS: Array<[string, () => Date]> = [['In 1 hour', () => new Date(Date.now() + 3600000)], ['Tomorrow 9:00', () => at(1, 9)], ['In 3 days', () => at(3, 9)], ['Next week', () => at(7, 9)]];
+
+/** The team books a free consultation for this chat: pick a free time; the lead gets the time and Meet link in the chat. */
+function MeetingForm({ groupId, onDone, onCancel }: { groupId: string; onDone: () => void; onCancel: () => void }) {
+  const [slots, setSlots] = useState<FreeSlot[] | null>(null);
+  const [pick, setPick] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { void call<{ slots: FreeSlot[] }>('/meetings/slots').then((r) => (r.ok ? setSlots(r.data.slots) : setErr(r.error))); }, []);
+  const book = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pick) return;
+    setBusy(true); setErr(null);
+    const r = await call<{ ok: true; sent: boolean; detail: string }>(`/conversations/${encodeURIComponent(groupId)}/meeting`, { start: pick });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error); return; }
+    if (!r.data.sent) setErr(`Booked, but the message to the lead failed: ${r.data.detail}`);
+    onDone();
+  };
+  return (
+    <form onSubmit={book} className="space-y-2 rounded-xl border border-line bg-white p-3">
+      {slots === null && !err && <p className="text-[12px] text-ink-soft">Finding free times...</p>}
+      {slots?.length === 0 && <p className="text-[12px] text-ink-soft">No free time in the bookable hours. Change them in Jadwal, or check that booking is switched on.</p>}
+      {slots && slots.length > 0 && (
+        <label className="block text-[11.5px] font-semibold text-ink-soft">Free time
+          <select value={pick} onChange={(e) => setPick(e.target.value)} className={`${input} mt-1 py-1.5 text-[12.5px]`}><option value="">Pick a time</option>{slots.map((x) => <option key={x.code} value={x.code}>{x.label}</option>)}</select>
+        </label>
+      )}
+      <p className="text-[11px] text-ink-soft">The lead gets the time and the Google Meet link in this chat.</p>
+      {err && <p role="alert" className="text-[12px] text-bad">{err}</p>}
+      <div className="flex gap-2"><button className={btnPrimary} disabled={busy || !pick}>{busy ? 'Booking...' : 'Book and send'}</button><button type="button" className={btnText} onClick={onCancel}>Cancel</button></div>
+    </form>
+  );
+}
 
 function ReminderForm({ groupId, agents, me, onDone, onCancel }: { groupId: string; agents: Agent[]; me: { id: string } | null; onDone: () => void; onCancel: () => void }) {
   const [when, setWhen] = useState(localInput(at(1, 9)));
