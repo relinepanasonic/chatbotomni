@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { channelLabel, type Agent, type ChatLabel, type ChatStatus, type ConversationSummary, type LeadSource, type ReminderItem, type Thread } from '@/lib/types';
 import { dateTimeLabel, timeLabel } from '@/lib/format';
 import { LABEL_CLASS } from './ChatExtras';
+import { ChannelMark } from './ChannelMark';
+import { CHANNEL_NAME, chatChannel } from '@/lib/channel';
 
 /**
  * The right-hand column of a chat, ordered by what a salesperson needs:
@@ -84,9 +86,11 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
           <span className="flex h-12 w-12 shrink-0 select-none items-center justify-center rounded-full text-[17px] font-bold text-white" style={{ background: avatarColor(current.name) }} aria-hidden="true">{current.initials}</span>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-[16px] font-extrabold leading-tight">{name}</h2>
-            <button onClick={copy} className="mt-0.5 inline-flex items-center gap-1 rounded text-[12.5px] text-ink-soft hover:text-brand-dark focus-visible:outline-2 focus-visible:outline-brand" title="Copy the number">
-              +{current.phone}<Icon d={copied ? I.check : I.copy} size={12} />{copied && <span className="text-[11px] text-ok">Copied</span>}
-            </button>
+            {chatChannel(current.phone) === 'whatsapp' ? (
+              <button onClick={copy} className="mt-0.5 inline-flex items-center gap-1 rounded text-[12.5px] text-ink-soft hover:text-brand-dark focus-visible:outline-2 focus-visible:outline-brand" title="Copy the number">
+                +{current.phone}<Icon d={copied ? I.check : I.copy} size={12} />{copied && <span className="text-[11px] text-ok">Copied</span>}
+              </button>
+            ) : <p className="mt-0.5 inline-flex items-center gap-1.5 text-[12.5px] text-ink-soft"><ChannelMark channel={chatChannel(current.phone)} size={14} />{CHANNEL_NAME[chatChannel(current.phone)]} DM, no phone number</p>}
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${whoClass}`}>{who}</span>
               {resolved && <span className="rounded-full bg-[#eef2f6] px-2 py-0.5 text-[11px] font-bold text-ink-soft">Resolved</span>}
