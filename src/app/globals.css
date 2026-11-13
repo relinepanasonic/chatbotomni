@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+/* Light-blue omnichannel look. Tokens first, so every colour in the app is one of these. */
+:root {
+  --brand: #2f9bf0;
+  --brand-dark: #1b7fd6;
+  --brand-deep: #0f5fae;
+  --brand-soft: #e7f3fe;
+  --brand-softer: #f3f9ff;
+  --ink: #17314d;
+  --ink-soft: #5a7189;
+  --line: #dbe8f4;
+  --bg: #eef4fa;
+  --panel: #ffffff;
+  --ok: #16a37a;
+  --ok-soft: #e3f7f0;
+  --warn: #d98a12;
+  --warn-soft: #fff3dc;
+  --bad: #e0455b;
+  --bad-soft: #fde8eb;
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-softer: var(--brand-softer);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-panel: var(--panel);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+/* thin scrollbars that stay out of the way */
+* { scrollbar-width: thin; scrollbar-color: #c3d8ec transparent; }
+::selection { background: #bfe0fb; }
+
+@keyframes pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.pop { animation: pop 0.18s ease-out; }
+@media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
