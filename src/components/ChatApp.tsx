@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { channelLabel, type Agent, type ChatFilter, type ChatStatus, type ConversationSummary, type Counts, type LeadSource, type ListResponse, type QuickReply, type SourcesResponse, type Thread, type ThreadMessage, type ChatLabel } from '@/lib/types';
-import { dayLabel, timeLabel, shortTime, waitLabel, waitMinutes, waitTone } from '@/lib/format';
+import { dayLabel, durLabel, timeLabel, shortTime, waitLabel, waitMinutes, waitTone } from '@/lib/format';
 import { askNotifyPermission, beep, notify, notifySupported } from '@/lib/alerts';
 import { QuickReplyManager } from './QuickReplyManager';
 import { LABEL_CLASS } from './ChatExtras';
@@ -10,6 +10,8 @@ import { CustomerPanel } from './CustomerPanel';
 import { uploadToSignedUrl } from '@/lib/upload';
 import { timeLabel as clock } from '@/lib/format';
 import { Rail } from './Rail';
+import { ChannelMark } from './ChannelMark';
+import { CHANNEL_NAME, chatChannel, replyMinutesLeft, type ChatChannel } from '@/lib/channel';
 
 /**
  * The chat inbox: conversations on the left, the chat in the middle, the customer on the right (like an omnichannel inbox), in light blue.
@@ -70,8 +72,10 @@ const I = {
 };
 
 /* ------------------------------------------------------------------ small pieces */
-function Avatar({ name, initials, size = 40 }: { name: string; initials: string; size?: number }) {
-  return <span className="inline-flex shrink-0 select-none items-center justify-center rounded-full font-bold text-white" style={{ width: size, height: size, background: avatarColor(name), fontSize: size * 0.36 }} aria-hidden="true">{initials}</span>;
+function Avatar({ name, initials, size = 40, channel }: { name: string; initials: string; size?: number; channel?: ChatChannel }) {
+  const face = <span className="inline-flex shrink-0 select-none items-center justify-center rounded-full font-bold text-white" style={{ width: size, height: size, background: avatarColor(name), fontSize: size * 0.36 }} aria-hidden="true">{initials}</span>;
+  if (!channel) return face;
+  return <span className="relative inline-flex shrink-0">{face}<ChannelMark channel={channel} size={Math.round(size * 0.42)} className="absolute -bottom-0.5 -right-0.5" /></span>;
 }
 
 function StatusChip({ c }: { c: ConversationSummary }) {
@@ -138,6 +142,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [authLost, setAuthLost] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [labelFilter, setLabelFilter] = useState('');
+  const [appFilter, setAppFilter] = useState<'' | ChatChannel>('');
   const [allLabels, setAllLabels] = useState<ChatLabel[]>([]);
   const [attach, setAttach] = useState<File | null>(null);
   const [mediaOn, setMediaOn] = useState(false);
@@ -293,6 +298,13 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const status = thread?.bot.status ?? current?.status ?? 'new';
   const resolved = thread?.resolved ?? current?.resolved ?? false;
   const assigned = thread ? thread.assignedTo : current?.assignedTo ?? null;
+  // the app the open chat lives in, and how long Meta still lets us reply (Instagram and Messenger: 24 hours after the customer's last message)
+  const channel = chatChannel(current?.phone);
+  const lastLeadAt = useMemo(() => [...(thread?.messages ?? [])].reverse().find((m) => m.sender === 'lead')?.at ?? null, [thread]);
+  const minutesLeft = thread && thread.id === selected ? replyMinutesLeft(channel, lastLeadAt, now) : null;
+  const windowClosed = minutesLeft === 0;
+  const hasOtherApps = useMemo(() => (list ?? []).some((c) => chatChannel(c.phone) !== 'whatsapp'), [list]);
+  const shown = useMemo(() => (appFilter ? list?.filter((c) => chatChannel(c.phone) === appFilter) ?? null : list), [list, appFilter]);
   const groups = useMemo(() => {
     const out: Array<{ day: string; items: ThreadMessage[] }> = [];
     for (const m of thread?.messages ?? []) { const d = dayLabel(m.at); const last = out[out.length - 1]; if (last && last.day === d) last.items.push(m); else out.push({ day: d, items: [m] }); }
@@ -318,10 +330,19 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
             <Icon d={I.search} size={16} />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, number, message or agent" aria-label="Search conversations" className="w-full bg-transparent text-[13px] text-ink outline-none placeholder:text-[#8aa0b6]" />
           </label>
+          {(allLabels.length > 0 || hasOtherApps) && (
+            <div className="mt-2 flex gap-2">
+          {hasOtherApps && (
+            <select value={appFilter} onChange={(e) => setAppFilter(e.target.value as '' | ChatChannel)} aria-label="Filter by app" className="w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-semibold text-ink-soft outline-none focus:border-brand">
+              <option value="">All apps</option>{(['whatsapp', 'instagram', 'messenger'] as ChatChannel[]).map((k) => <option key={k} value={k}>{CHANNEL_NAME[k]}</option>)}
+            </select>
+          )}
           {allLabels.length > 0 && (
-            <select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)} aria-label="Filter by label" className="mt-2 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-semibold text-ink-soft outline-none focus:border-brand">
+            <select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)} aria-label="Filter by label" className="w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-semibold text-ink-soft outline-none focus:border-brand">
               <option value="">All labels</option>{allLabels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
+          )}
+            </div>
           )}
         </div>
         <div className="flex gap-0.5 overflow-x-auto border-b border-line px-2.5 pb-2" role="tablist">
@@ -343,13 +364,13 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
             <li className="p-6 text-center text-[13px]"><p className="text-bad">{listError}</p><button onClick={() => { setListError(null); void loadList(); }} className="mt-2 rounded-lg bg-brand px-3 py-1.5 text-[12px] font-bold text-white hover:bg-brand-dark">Try again</button></li>
           )}
           {authLost && <li className="p-6 text-center text-[13px] text-bad">Please sign in to the ERP again, then refresh this page.</li>}
-          {list?.length === 0 && <li className="p-6 text-center text-[13px] text-ink-soft">{q ? 'No chat matches your search.' : filter === 'mine' ? 'No chat is assigned to you yet.' : 'No chats here yet.'}</li>}
-          {list?.map((c) => {
+          {shown?.length === 0 && <li className="p-6 text-center text-[13px] text-ink-soft">{q ? 'No chat matches your search.' : appFilter ? `No ${CHANNEL_NAME[appFilter]} chats here.` : filter === 'mine' ? 'No chat is assigned to you yet.' : 'No chats here yet.'}</li>}
+          {shown?.map((c) => {
             const mins = c.unserved ? waitMinutes(c.waitingSince, now) : 0;
             return (
               <li key={c.id}>
                 <button onClick={() => { setSelected(c.id); setNotice(null); setMode('reply'); setText(''); }} className={`flex w-full items-start gap-3 border-b border-[#eef3f8] px-4 py-3 text-left transition hover:bg-brand-softer ${selected === c.id ? 'bg-brand-soft' : ''}`} aria-current={selected === c.id ? 'true' : undefined}>
-                  <Avatar name={c.name} initials={c.initials} />
+                  <Avatar name={c.name} initials={c.initials} channel={chatChannel(c.phone)} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2"><span className="truncate text-[13.5px] font-bold">{c.name}</span><span className="shrink-0 text-[10.5px] text-ink-soft">{shortTime(c.lastAt)}</span></span>
                     <span className="mt-0.5 flex items-center justify-between gap-2">
@@ -387,10 +408,10 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
           <>
             <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-panel px-4 py-3">
               <button className="rounded-lg p-1.5 text-ink-soft hover:bg-brand-soft lg:hidden" onClick={() => setSelected(null)} aria-label="Back to the inbox"><Icon d={I.back} /></button>
-              <Avatar name={current.name} initials={current.initials} size={38} />
+              <Avatar name={current.name} initials={current.initials} size={38} channel={channel} />
               <div className="min-w-0 flex-1 basis-40">
                 <div className="truncate text-[14.5px] font-extrabold">{current.name}</div>
-                <div className="flex items-center gap-1.5 text-[11.5px] text-ink-soft"><Icon d={I.phone} size={12} />+{current.phone}</div>
+                <div className="flex items-center gap-1.5 text-[11.5px] text-ink-soft">{channel === 'whatsapp' ? <><Icon d={I.phone} size={12} />+{current.phone}</> : <><ChannelMark channel={channel} size={13} />{CHANNEL_NAME[channel]} DM</>}</div>
               </div>
               <span className={`hidden rounded-full px-2.5 py-1 text-[11px] font-bold 2xl:inline ${status === 'bot' ? 'bg-brand-soft text-brand-dark' : status === 'human' ? 'bg-ok-soft text-ok' : 'bg-[#eef2f6] text-ink-soft'}`}>{STATUS_LABEL[status]}</span>
               <label className="flex items-center gap-1.5 text-[11.5px] font-semibold text-ink-soft">
@@ -432,6 +453,11 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   ))}
                 </ul>
               )}
+              {mode === 'reply' && channel !== 'whatsapp' && minutesLeft !== null && (
+                windowClosed
+                  ? <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-bad-soft px-3 py-1.5 text-[12px] text-bad"><Icon d={I.lock} size={14} />{CHANNEL_NAME[channel]} only allows a reply within 24 hours of the customer&apos;s last message, and that time is over. When they write again you can reply. You can still add a note for the team.</p>
+                  : <p className={`mb-2 text-[11.5px] font-semibold ${minutesLeft < 120 ? 'text-warn' : 'text-ink-soft'}`}>{CHANNEL_NAME[channel]}: you can reply for {durLabel(minutesLeft)} more (24 hours after the customer&apos;s last message).</p>
+              )}
               {notice && <p role="alert" className={`mb-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] ${notice.kind === 'error' ? 'bg-bad-soft text-bad' : 'bg-brand-soft text-brand-dark'}`}><Icon d={I.alert} size={14} />{notice.text}</p>}
               <div className="mb-2 flex items-center gap-1.5">
                 <div className="flex rounded-lg bg-[#e8eff7] p-0.5 text-[12px] font-bold" role="tablist" aria-label="Message type">
@@ -442,7 +468,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   <>
                     <button onClick={suggest} disabled={suggesting} className="flex items-center gap-1.5 rounded-lg border border-brand/40 px-2.5 py-1 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft disabled:opacity-50" title="The AI writes a draft from the bot's knowledge. Nothing is sent."><Icon d={I.spark} size={14} />{suggesting ? 'Writing...' : 'Suggest reply'}</button>
                     <button onClick={() => setQrOpen(true)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft" title="Type / in the box to use a quick reply"><Icon d={I.bolt} size={14} />Quick replies</button>
-                    <button onClick={() => (mediaOn ? fileRef.current?.click() : setNotice({ kind: 'info', text: "Sending photos is locked: the sales number's Fonnte package does not include attachments yet. After upgrading, an admin can switch it on in AI Kamus > Bot script & settings." }))}
+                    <button onClick={() => (channel !== 'whatsapp' ? setNotice({ kind: 'info', text: `Sending photos to ${CHANNEL_NAME[channel]} is not ready yet. Send text, or share a link.` }) : mediaOn ? fileRef.current?.click() : setNotice({ kind: 'info', text: "Sending photos is locked: the sales number's Fonnte package does not include attachments yet. After upgrading, an admin can switch it on in AI Kamus > Bot script & settings." }))}
                       aria-disabled={!mediaOn} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition ${mediaOn ? 'text-ink-soft hover:bg-brand-soft' : 'cursor-not-allowed text-[#a9b8c7]'}`}
                       title={mediaOn ? 'Send a photo (the text becomes its caption)' : 'Locked: needs a Fonnte package with attachments on the sales number'}><Icon d={mediaOn ? I.clip : I.lock} size={14} />Photo{!mediaOn && <span className="rounded bg-[#eef2f6] px-1 text-[9.5px] font-extrabold uppercase tracking-wide">Locked</span>}</button>
                     <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { setAttach(f); setNotice(null); boxRef.current?.focus(); } }} />
@@ -459,7 +485,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                 </div>
               )}
               <div className="flex items-end gap-2">
-                <textarea ref={boxRef} value={text} onChange={(e) => setText(e.target.value)} rows={mode === 'reply' && text.length > 120 ? 4 : 1} maxLength={mode === 'note' ? 2000 : 1500} aria-label={mode === 'note' ? 'Type an internal note' : 'Type a message'}
+                <textarea ref={boxRef} value={text} onChange={(e) => setText(e.target.value)} disabled={mode === 'reply' && windowClosed} rows={mode === 'reply' && text.length > 120 ? 4 : 1} maxLength={mode === 'note' ? 2000 : 1500} aria-label={mode === 'note' ? 'Type an internal note' : 'Type a message'}
                   onKeyDown={(e) => {
                     if (slashMatches.length > 0) {
                       if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIdx((i) => (i + 1) % slashMatches.length); return; }
@@ -469,11 +495,11 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                     }
                     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); }
                   }}
-                  placeholder={mode === 'note' ? 'Write a private note for the team...' : 'Type a message, or / for a quick reply (Enter to send, Shift+Enter for a new line)'}
+                  placeholder={mode === 'note' ? 'Write a private note for the team...' : windowClosed ? 'The reply window is closed: switch to Note to write for the team' : 'Type a message, or / for a quick reply (Enter to send, Shift+Enter for a new line)'}
                   className={`max-h-40 min-h-[42px] flex-1 resize-none rounded-xl border px-3.5 py-2.5 text-[13.5px] outline-none placeholder:text-[#8aa0b6] focus:bg-white ${mode === 'note' ? 'border-[#f2d9a0] bg-[#fff6e0] focus:border-warn' : 'border-line bg-brand-softer focus:border-brand'}`} />
-                <button onClick={send} disabled={sending || (!text.trim() && !(attach && mode === 'reply'))} aria-label={mode === 'note' ? 'Save note' : 'Send message'} className={`flex h-[42px] shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-40 ${mode === 'note' ? 'w-auto bg-warn px-3 text-[12.5px] font-bold hover:brightness-95' : 'w-[42px] bg-brand hover:bg-brand-dark'}`}>{mode === 'note' ? 'Add note' : <Icon d={I.send} size={18} />}</button>
+                <button onClick={send} disabled={sending || (mode === 'reply' && windowClosed) || (!text.trim() && !(attach && mode === 'reply'))} aria-label={mode === 'note' ? 'Save note' : 'Send message'} className={`flex h-[42px] shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-40 ${mode === 'note' ? 'w-auto bg-warn px-3 text-[12.5px] font-bold hover:brightness-95' : 'w-[42px] bg-brand hover:bg-brand-dark'}`}>{mode === 'note' ? 'Add note' : <Icon d={I.send} size={18} />}</button>
               </div>
-              <p className="mt-1.5 text-[10.5px] text-ink-soft">{mode === 'note' ? 'Notes are only for the team. The lead never sees them.' : 'Sent from the sales number. Replying pauses the bot for this chat and makes it yours if nobody has it.'}</p>
+              <p className="mt-1.5 text-[10.5px] text-ink-soft">{mode === 'note' ? 'Notes are only for the team. The lead never sees them.' : `Sent from ${channel === 'whatsapp' ? 'the sales number' : channel === 'instagram' ? 'your Instagram account' : 'your Facebook Page'}. Replying pauses the bot for this chat and makes it yours if nobody has it.`}</p>
             </footer>
           </>
         )}

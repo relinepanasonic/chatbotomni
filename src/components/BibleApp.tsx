@@ -5,6 +5,7 @@ import type { BibleDoc, BibleDocFull, BibleLogEntry, BibleResponse, BotSettings,
 import { ageLabel, dateTimeLabel, isStale, sizeLabel } from '@/lib/format';
 import { uploadToSignedUrl } from '@/lib/upload';
 import { Rail } from './Rail';
+import { ChannelsCard } from './ChannelsCard';
 
 /**
  * The AI Kamus (the AI's dictionary): what the sales bot and "Suggest reply" know. The Sales Deck (a PDF) is uploaded here, Claude reads it, and the text can be corrected
@@ -48,7 +49,7 @@ const STATUS: Record<BibleDoc['status'], { label: string; cls: string }> = {
 
 const EXAMPLES = ['Berapa harga Paket Sultan?', 'Apa bedanya Paket Lapak dan Juragan?', 'Paket apa yang cocok untuk toko baru?', 'Apakah ada kontrak minimal?'];
 
-export function BibleApp({ demo }: { demo: boolean }) {
+export function BibleApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [tab, setTab] = useState<Tab>('docs');
   const [data, setData] = useState<BibleResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +178,7 @@ export function BibleApp({ demo }: { demo: boolean }) {
             </section>
           )}
 
-          {data && tab === 'settings' && <SettingsTab initial={data.settings} canEdit={canEdit} say={say} />}
+          {data && tab === 'settings' && <div className="space-y-4"><ChannelsCard erpOrigin={erpUrl} /><SettingsTab initial={data.settings} canEdit={canEdit} say={say} /></div>}
           {data && tab === 'ask' && <AskTab />}
           {data && tab === 'history' && <HistoryTab log={data.log ?? []} />}
         </div>

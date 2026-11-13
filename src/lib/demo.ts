@@ -25,6 +25,10 @@ const chats: DemoChat[] = [
   { id: 'c4', phone: '6281234500044', name: 'Dian', status: 'new', botReplies: 0, assignedTo: null, resolved: false, lead: null, messages: [M('1', 'lead', 'info iklan', 4)] },
   { id: 'c5', phone: '6281234500055', name: 'Hendra Wijaya', status: 'bot', botReplies: 2, assignedTo: { id: 'u-lucy', name: 'Lucy' }, resolved: false, lead: { name: 'Hendra', store: 'HW Spareparts' },
     messages: [M('1', 'lead', 'Selamat pagi, saya lihat iklan kakak di Instagram', 1500), M('2', 'bot', 'Hi kak, Fefe disini. Boleh tau toko kakak jualan apa ya?', 1499), M('3', 'lead', 'sparepart motor', 1480), M('4', 'bot', 'Wah, sparepart motor ya kak. Toko kakak sekarang sudah jalan di Shopee, atau baru mau mulai?', 1479)] },
+  { id: 'c7', phone: 'ig:17841400000001', name: 'Rina Hijab Store', status: 'bot', botReplies: 1, assignedTo: null, resolved: false, lead: { name: 'Rina', store: 'Rina Hijab Store' },
+    messages: [M('1', 'lead', 'Kak, mau tanya jasa kelola Shopee nya dong', 18), M('2', 'bot', 'Hi kak, Fefe disini. Boleh tau toko kakak jualan apa ya?', 17), M('3', 'lead', 'Hijab dan gamis kak', 15)] },
+  { id: 'c8', phone: 'fb:6011111111111111', name: 'Agus Pratama', status: 'human', botReplies: 1, assignedTo: { id: 'u-rani', name: 'Rani' }, resolved: false, lead: null,
+    messages: [M('1', 'lead', 'Halo, ini harga paketnya berapa?', 1700), M('2', 'bot', 'Hi kak, Fefe disini. Untuk paketnya mulai dari Rp 1,5 jt per bulan kak.', 1699)] },
   { id: 'c6', phone: '6281234500066', name: 'Maya', status: 'off', botReplies: 0, assignedTo: { id: 'u-lucy', name: 'Lucy' }, resolved: true, lead: null, messages: [M('1', 'lead', 'Terima kasih kak', 3000), M('2', 'team', 'Sama-sama kak Maya', 2990, 'Lucy')] },
 ];
 
@@ -80,6 +84,12 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   const b: any = body;
 
   if (parts[0] === 'bible') return bibleDemo(parts, method, b);
+  if (parts[0] === 'channels') {
+    if (method === 'POST' && parts.length === 1) return json({ ok: true, page: 'Prof Toko Online', instagram: '@proftokoonline', subscribed: true, warning: null });
+    if (method === 'POST') return json({ ok: true });
+    return json({ accounts: [{ id: 'd1', channel: 'whatsapp', name: '+6285758789999', active: true }, { id: 'd2', channel: 'messenger', name: 'Messenger: Prof Toko Online', active: true }, { id: 'd3', channel: 'instagram', name: 'Instagram: @proftokoonline', active: true }],
+      meta: { pageToken: true, appSecret: true, verifyToken: true, appId: false, webhookPath: '/api/meta/webhook' }, canEdit: true });
+  }
   if (parts[0] === 'stats') return json(demoStats(Number(url.searchParams.get('days')) || 30));
   if (parts[0] === 'flows') return flowsDemo(parts, method, b);
   if (parts[0] === 'sources') return sourcesDemo(parts, method, b, url);
