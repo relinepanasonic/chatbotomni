@@ -6,6 +6,7 @@ import { ageLabel, dateTimeLabel, isStale, sizeLabel } from '@/lib/format';
 import { uploadToSignedUrl } from '@/lib/upload';
 import { Rail } from './Rail';
 import { ChannelsCard } from './ChannelsCard';
+import { ChannelMark } from './ChannelMark';
 
 /**
  * The AI Kamus (the AI's dictionary): what the sales bot and "Suggest reply" know. The Sales Deck (a PDF) is uploaded here, Claude reads it, and the text can be corrected
@@ -312,7 +313,13 @@ function SettingsTab({ initial, canEdit, say }: { initial: BotSettings; canEdit:
           <textarea className={`${field} mt-1 h-80 resize-y font-mono text-[12px] leading-relaxed`} value={s.knowledge} disabled={!canEdit} spellCheck={false} onChange={(e) => setS({ ...s, knowledge: e.target.value })} />
         </label>
         {canEdit && <button className={`${btnPrimary} mt-3`} disabled={busy} onClick={() => void save({ persona_name: s.persona_name, company_name: s.company_name, hours_from: s.hours_from, hours_to: s.hours_to, max_replies: s.max_replies, knowledge: s.knowledge }, 'Saved. The bot uses it within a minute.')}>{busy ? 'Saving...' : 'Save settings and script'}</button>}
-        <p className="mt-2 text-[11.5px] text-ink-soft">Package names and prices should come from the Sales Deck in Documents. If the script and a document ever differ, the AI trusts the document with the newest date.</p>
+        <p className="mt-2 text-[11.5px] text-ink-soft">Used on WhatsApp. Package names and prices should come from the Sales Deck in Documents. If the script and a document ever differ, the AI trusts the document with the newest date.</p>
+      </div>
+      <div className="rounded-2xl border border-line bg-white p-4">
+        <h2 className="flex items-center gap-2 text-[14.5px] font-extrabold"><ChannelMark channel="instagram" /><ChannelMark channel="messenger" />Script for Instagram and Messenger</h2>
+        <p className="mt-0.5 text-[12.5px] text-ink-soft">People who DM on Instagram and Facebook usually ask how to sell more on Shopee, TikTok Shop or Tokopedia, not about the packages yet. On those chats the bot answers their question first with practical tips, from this script and its own marketplace know-how, and offers the team only when it fits. Prices and packages still come only from the Documents. It may send up to 12 messages per chat before a person takes over.</p>
+        <textarea aria-label="Script for Instagram and Messenger" className={`${field} mt-3 h-80 resize-y font-mono text-[12px] leading-relaxed`} value={s.social_script ?? ''} disabled={!canEdit} spellCheck={false} onChange={(e) => setS({ ...s, social_script: e.target.value })} />
+        {canEdit && <button className={`${btnPrimary} mt-3`} disabled={busy} onClick={() => void save({ social_script: s.social_script ?? '' }, 'Saved. Instagram and Messenger chats use it within a minute.')}>{busy ? 'Saving...' : 'Save the Instagram and Messenger script'}</button>}
       </div>
     </section>
   );
