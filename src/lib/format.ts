@@ -61,3 +61,22 @@ export function sizeLabel(bytes: number | null): string {
 
 /** "13 Nov 2026, 14:05" in Jakarta time: the exact moment something happened. */
 export const dateTimeLabel = (iso: string): string => `${new Intl.DateTimeFormat('id-ID', { timeZone: TZ, day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(iso))}, ${timeLabel(iso)}`;
+
+/** A duration in minutes, the way the team reads it: "< 1 mnt", "12 mnt", "2 j 5 mnt", "3 hari"; "-" when there is nothing. */
+export function durLabel(min: number | null | undefined): string {
+  if (min === null || min === undefined || !Number.isFinite(min)) return '-';
+  if (min < 1) return '< 1 mnt';
+  const m = Math.round(min);
+  if (m < 60) return `${m} mnt`;
+  if (m < 1440) { const h = Math.floor(m / 60); const r = m % 60; return r ? `${h} j ${r} mnt` : `${h} j`; }
+  return `${Math.round(m / 1440)} hari`;
+}
+
+/** "Rp 4,5 jt", "Rp 850 rb": short money for tiles and charts. */
+export function rpShort(n: number): string {
+  if (!n) return 'Rp 0';
+  if (n >= 1e9) return `Rp ${(n / 1e9).toFixed(1).replace('.', ',')} M`;
+  if (n >= 1e6) return `Rp ${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace('.', ',')} jt`;
+  if (n >= 1e3) return `Rp ${Math.round(n / 1e3)} rb`;
+  return `Rp ${Math.round(n)}`;
+}

@@ -80,6 +80,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   const b: any = body;
 
   if (parts[0] === 'bible') return bibleDemo(parts, method, b);
+  if (parts[0] === 'stats') return json(demoStats(Number(url.searchParams.get('days')) || 30));
   if (parts[0] === 'flows') return flowsDemo(parts, method, b);
   if (parts[0] === 'sources') return sourcesDemo(parts, method, b, url);
   if (parts[0] === 'labels') {
@@ -335,4 +336,29 @@ function flowsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): 
   }
   if (method === 'DELETE') { demoFlows.splice(demoFlows.indexOf(f), 1); return json({ ok: true }); }
   return json(f);
+}
+
+// ---------------------------------------------------------------- numbers page (demo)
+function demoStats(days: number) {
+  const now = Date.now();
+  const daily = Array.from({ length: days }, (_, i) => {
+    const d = new Date(now - (days - 1 - i) * 86400000);
+    const wave = Math.round(4 + 3 * Math.sin(i / 2.2) + (i % 7 === 5 ? 3 : 0));
+    return { day: d.toISOString().slice(0, 10), newChats: Math.max(0, wave), leadMessages: Math.max(0, wave * 4 + (i % 3)), replies: Math.max(0, wave * 3 + (i % 4)) };
+  });
+  const sum = (k: 'newChats' | 'leadMessages' | 'replies') => daily.reduce((n, d) => n + d[k], 0);
+  const scale = days / 30;
+  return {
+    from: new Date(now - days * 86400000).toISOString(), to: new Date(now).toISOString(), days,
+    overview: { newChats: sum('newChats'), leadMessages: sum('leadMessages'), replies: sum('replies'), medianReply: 3.2, medianBot: 0.4, medianPeople: 11.5, within5: 0.68, leads: Math.round(18 * scale), won: Math.round(6 * scale), wonValue: Math.round(22000000 * scale) },
+    daily,
+    bot: { chatsAnswered: Math.round(96 * scale), replies: Math.round(210 * scale), handedOver: Math.round(41 * scale), stillWithBot: 12, reasons: [{ reason: 'A salesperson took over', count: Math.round(19 * scale) }, { reason: 'Price negotiation', count: Math.round(9 * scale) }, { reason: 'Bot message limit', count: Math.round(7 * scale) }, { reason: 'Asked for a person', count: Math.round(4 * scale) }, { reason: 'Payment', count: Math.round(2 * scale) }] },
+    people: [
+      { name: 'Rani', chats: 34, replies: 128, medianMinutes: 4.5, leads: 9, won: 3, wonValue: 12000000 },
+      { name: 'Lucy', chats: 22, replies: 76, medianMinutes: 12, leads: 6, won: 2, wonValue: 7000000 },
+      { name: 'Vani', chats: 5, replies: 14, medianMinutes: 26, leads: 1, won: 1, wonValue: 3000000 },
+    ],
+    funnel: [{ channel: 'meta_ads', chats: 58, leads: 12, won: 4, wonValue: 16000000 }, { channel: 'google_ads', chats: 24, leads: 5, won: 2, wonValue: 6000000 }, { channel: 'unknown', chats: 11, leads: 1, won: 0, wonValue: 0 }],
+    now: { waiting: 3, longestWaitMinutes: 19, overdueFollowups: 1 },
+  };
 }
