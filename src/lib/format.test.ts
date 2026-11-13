@@ -64,3 +64,11 @@ describe('document age', () => {
     expect(sizeLabel(null)).toBe('');
   });
 });
+
+import { dateTimeLabel } from './format';
+
+describe('dateTimeLabel', () => {
+  it('writes the exact moment in Jakarta time', () => {
+    expect(dateTimeLabel('2026-11-13T07:05:00Z')).toMatch(/^13 .* 2026, 14:05$/);
+  });
+});

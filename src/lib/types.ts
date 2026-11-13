@@ -2,6 +2,7 @@
 export type ChatStatus = 'bot' | 'human' | 'off' | 'new';
 export type ChatFilter = 'all' | 'mine' | 'unserved' | 'bot' | 'resolved';
 
+export interface ChatSource { label: string | null; channel: string; by: string | null }
 export interface Lead { name?: string; store?: string; need?: string }
 export interface Person { id: string; name: string }
 
@@ -11,6 +12,7 @@ export interface ConversationSummary {
   unserved: boolean; waitingSince: string | null;
   status: ChatStatus; lead: Lead | null; botReplies: number;
   assignedTo: Person | null; resolved: boolean;
+  source: ChatSource | null;
 }
 export interface Counts { all: number; mine: number; unserved: number; bot: number; human: number; resolved: number }
 export interface ListResponse { me?: { id: string; name: string; role: string }; conversations: ConversationSummary[]; counts: Counts }
@@ -24,6 +26,7 @@ export interface Thread {
   bot: { status: ChatStatus; replies: number; reason: string | null; lead: Lead | null };
   botLog: Array<{ reply: string | null; handoff: boolean; ok: boolean; detail: string | null; created_at: string }>;
   assignedTo: Person | null; resolved: boolean;
+  source: ChatSource | null; sourceId: string | null; firstMessage: string | null;
   client: { id: string; name: string; sales: string | null; serviceEnd: string | null } | null;
   deals: Array<{ id: string; title: string; stage: string; value: number; sales: string | null }>;
 }
@@ -31,7 +34,7 @@ export interface Thread {
 export interface Agent { id: string; name: string; role: string }
 export interface QuickReply { id: string; shortcut: string; title: string; body: string }
 
-/** The AI Bible (the Sales Deck and other documents the AI reads), as the ERP returns it. */
+/** The AI Kamus (the Sales Deck and other documents the AI reads), as the ERP returns it. */
 export interface BibleDoc {
   id: string; title: string; kind: string; file_name: string | null; file_size: number | null;
   status: 'processing' | 'ready' | 'failed'; error: string | null; active: boolean; version: number; replaces: string | null;
@@ -39,5 +42,20 @@ export interface BibleDoc {
 }
 export interface BibleDocFull extends BibleDoc { text: string }
 export interface BotSettings { enabled: boolean; persona_name: string; company_name: string; hours_from: string; hours_to: string; max_replies: number; knowledge: string }
-export interface BibleResponse { docs: BibleDoc[]; settings: BotSettings; canEdit: boolean }
+export interface BibleLogEntry { id: string; doc_id: string | null; doc_title: string; action: string; by_name: string | null; detail: string | null; created_at: string }
+export interface BibleResponse { docs: BibleDoc[]; log: BibleLogEntry[]; settings: BotSettings; canEdit: boolean }
 export interface UploadTarget { ok: true; path: string; token: string; bucket: string }
+
+/** Lead sources: the ads and the first message each pre-fills, and the report. */
+export type Channel = 'meta_ads' | 'google_ads' | 'tiktok_ads' | 'organic' | 'referral' | 'other';
+export const CHANNELS: Array<{ key: Channel; label: string }> = [
+  { key: 'meta_ads', label: 'Meta Ads' }, { key: 'google_ads', label: 'Google Ads' }, { key: 'tiktok_ads', label: 'TikTok Ads' },
+  { key: 'organic', label: 'Organic' }, { key: 'referral', label: 'Referral' }, { key: 'other', label: 'Other' },
+];
+export const channelLabel = (c: string | null | undefined) => CHANNELS.find((x) => x.key === c)?.label ?? 'Unknown';
+export interface LeadSource { id: string; name: string; channel: Channel; first_message: string; active: boolean; created_at: string; created_by: string | null }
+export interface SourcesResponse { sources: LeadSource[]; canEdit: boolean }
+export interface SourceRow { key: string; label: string; channel: Channel | 'unknown'; leads: number; clients: number; deals: number; won: number; wonValue: number }
+export interface ChannelRow { channel: Channel | 'unknown'; leads: number; clients: number; deals: number; won: number; wonValue: number }
+export interface UnmatchedChat { group_id: string; name: string; first_message: string; at: string }
+export interface SourceReport { days: number; rows: SourceRow[]; channels: ChannelRow[]; total: Omit<SourceRow, 'key' | 'label' | 'channel'>; unmatched: UnmatchedChat[]; sources: number }

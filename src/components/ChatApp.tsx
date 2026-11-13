@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Agent, ChatFilter, ChatStatus, ConversationSummary, Counts, ListResponse, QuickReply, Thread, ThreadMessage } from '@/lib/types';
+import { channelLabel, type Agent, type ChatFilter, type ChatStatus, type ConversationSummary, type Counts, type LeadSource, type ListResponse, type QuickReply, type SourcesResponse, type Thread, type ThreadMessage } from '@/lib/types';
 import { dayLabel, timeLabel, shortTime, waitLabel, waitMinutes, waitTone } from '@/lib/format';
 import { askNotifyPermission, beep, notify, notifySupported } from '@/lib/alerts';
 import { QuickReplyManager } from './QuickReplyManager';
@@ -126,6 +126,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [thread, setThread] = useState<Thread | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [quick, setQuick] = useState<QuickReply[]>([]);
+  const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [qrOpen, setQrOpen] = useState(false);
   const [text, setText] = useState('');
   const [mode, setMode] = useState<'reply' | 'note'>('reply');
@@ -188,7 +189,8 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
 
   const loadAgents = useCallback(async () => { const r = await api<{ agents: Agent[] }>('/agents'); if (r.ok) setAgents(r.data.agents); }, []);
   const loadQuick = useCallback(async () => { const r = await api<{ quickReplies: QuickReply[] }>('/quick-replies'); if (r.ok) setQuick(r.data.quickReplies); }, []);
-  useEffect(() => { void loadAgents(); void loadQuick(); }, [loadAgents, loadQuick]);
+  const loadSources = useCallback(async () => { const r = await api<SourcesResponse>('/sources'); if (r.ok) setLeadSources(r.data.sources.filter((x) => x.active)); }, []);
+  useEffect(() => { void loadAgents(); void loadQuick(); void loadSources(); }, [loadAgents, loadQuick, loadSources]);
 
   const loadThread = useCallback(async (id: string) => {
     const r = await api<Thread>(`/conversations/${encodeURIComponent(id)}`);
@@ -251,7 +253,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
     if (!thread || thread.id !== selected) return null;
     const parts = thread.name.replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).filter(Boolean);
     const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : (parts[0] || '#').slice(0, 2)).toUpperCase();
-    return { id: thread.id, phone: thread.phone, name: thread.name, initials, lastText: '', lastAt: null, lastFromMe: false, unserved: false, waitingSince: null, status: thread.bot.status, lead: thread.bot.lead, botReplies: thread.bot.replies, assignedTo: thread.assignedTo, resolved: thread.resolved };
+    return { id: thread.id, phone: thread.phone, name: thread.name, initials, lastText: '', lastAt: null, lastFromMe: false, unserved: false, waitingSince: null, status: thread.bot.status, lead: thread.bot.lead, botReplies: thread.bot.replies, assignedTo: thread.assignedTo, resolved: thread.resolved, source: thread.source };
   }, [list, selected, thread]);
   const status = thread?.bot.status ?? current?.status ?? 'new';
   const resolved = thread?.resolved ?? current?.resolved ?? false;
@@ -316,6 +318,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                     </span>
                     <span className="mt-1 flex items-center gap-2 text-[10.5px] text-ink-soft">
                       {c.unserved && !c.resolved && <span className={`font-bold ${TONE[waitTone(mins)]}`}>Menunggu {waitLabel(mins)}</span>}
+                      {c.source && c.source.channel !== 'unknown' && <span className="truncate rounded-full bg-brand-soft px-1.5 py-px text-[10px] font-bold text-brand-dark" title={c.source.label ?? undefined}>{channelLabel(c.source.channel)}</span>}
                       <span className="ml-auto truncate">{c.assignedTo ? `👤 ${c.assignedTo.name}` : 'Unassigned'}</span>
                     </span>
                   </span>
@@ -433,6 +436,26 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
               <Row k="State" v={resolved ? 'Resolved' : current.unserved ? 'Waiting for a reply' : 'Open'} />
               {current.unserved && !resolved && <Row k="Waiting" v={waitLabel(waitMinutes(current.waitingSince, now))} />}
             </dl>
+          </Block>
+
+          <Block title="Where the lead came from">
+            {thread?.firstMessage || thread?.source ? (
+              <div className="space-y-2 text-[12.5px]">
+                <dl className="space-y-1">
+                  <Row k="Channel" v={thread.source ? channelLabel(thread.source.channel) : 'Unknown'} />
+                  <Row k="Ad" v={thread.source?.label || 'No ad matched'} />
+                  {thread.source?.by && <Row k="Set by" v={thread.source.by} />}
+                </dl>
+                {thread.firstMessage && <blockquote className="border-l-4 border-brand/40 pl-2 italic text-ink-soft">&ldquo;{thread.firstMessage}&rdquo;</blockquote>}
+                <label className="block text-[11px] font-semibold text-ink-soft">Change the source
+                  <select value={thread.sourceId ?? ''} onChange={(e) => act('source', { sourceId: e.target.value || null })} aria-label="Lead source" className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-semibold text-ink outline-none focus:border-brand">
+                    <option value="">No ad / unknown</option>
+                    {thread.sourceId && !leadSources.some((x) => x.id === thread.sourceId) && <option value={thread.sourceId}>{thread.source?.label}</option>}
+                    {leadSources.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                </label>
+              </div>
+            ) : <p className="text-[12.5px] text-ink-soft">The first message will be saved here and compared with your ads.</p>}
           </Block>
 
           <Block title="Customer">

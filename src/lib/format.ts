@@ -58,3 +58,6 @@ export function sizeLabel(bytes: number | null): string {
   if (!bytes) return '';
   return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
+
+/** "13 Nov 2026, 14:05" in Jakarta time: the exact moment something happened. */
+export const dateTimeLabel = (iso: string): string => `${new Intl.DateTimeFormat('id-ID', { timeZone: TZ, day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(iso))}, ${timeLabel(iso)}`;

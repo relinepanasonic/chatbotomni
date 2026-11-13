@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import type { Agent, BibleDocFull, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
+import type { Agent, ChatSource, Channel, LeadSource, SourceReport, BibleDocFull, BibleLogEntry, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
 
 /** Made-up chats for previewing the design locally (DEMO=1, never in production). Nothing here touches the ERP or WhatsApp. */
 
@@ -9,7 +9,7 @@ const M = (id: string, sender: ThreadMessage['sender'], text: string, min: numbe
 const AGENTS: Agent[] = [{ id: 'u-demo', name: 'Demo', role: 'sales' }, { id: 'u-rani', name: 'Rani', role: 'sales' }, { id: 'u-lucy', name: 'Lucy', role: 'sales' }, { id: 'u-vani', name: 'Vani', role: 'admin' }];
 const ME: Person = { id: 'u-demo', name: 'Demo' };
 
-interface DemoChat { id: string; phone: string; name: string; status: ChatStatus; botReplies: number; lead: { name?: string; store?: string; need?: string } | null; messages: ThreadMessage[]; assignedTo: Person | null; resolved: boolean; client?: Thread['client']; deals?: Thread['deals'] }
+interface DemoChat { id: string; phone: string; name: string; status: ChatStatus; botReplies: number; lead: { name?: string; store?: string; need?: string } | null; messages: ThreadMessage[]; assignedTo: Person | null; resolved: boolean; src?: { sourceId: string | null; label: string | null; channel: string; by: string | null; first: string }; client?: Thread['client']; deals?: Thread['deals'] }
 
 const chats: DemoChat[] = [
   { id: 'c1', phone: '6281234500011', name: 'Budi Santoso', status: 'bot', botReplies: 1, assignedTo: null, resolved: false, lead: { name: 'Budi', store: 'Kawat Nyamuk Jaya', need: 'Iklan Shopee' },
@@ -26,6 +26,16 @@ const chats: DemoChat[] = [
   { id: 'c6', phone: '6281234500066', name: 'Maya', status: 'off', botReplies: 0, assignedTo: { id: 'u-lucy', name: 'Lucy' }, resolved: true, lead: null, messages: [M('1', 'lead', 'Terima kasih kak', 3000), M('2', 'team', 'Sama-sama kak Maya', 2990, 'Lucy')] },
 ];
 
+const SOURCES: LeadSource[] = [
+  { id: 's1', name: 'Meta Ads: Promo Paket Sultan', channel: 'meta_ads', first_message: 'Halo kak, saya mau tanya Paket Sultan dari iklan Instagram', active: true, created_at: ago(60 * 24 * 20), created_by: 'Nico' },
+  { id: 's2', name: 'Google Ads: Kelola Toko Shopee', channel: 'google_ads', first_message: 'Halo, saya tertarik jasa kelola toko Shopee dari Google', active: true, created_at: ago(60 * 24 * 9), created_by: 'Nico' },
+  { id: 's3', name: 'TikTok Ads: Friends Order', channel: 'tiktok_ads', first_message: 'Kak, mau info Friends Order dari TikTok', active: false, created_at: ago(60 * 24 * 3), created_by: 'Vani' },
+];
+chats[0].src = { sourceId: 's1', label: SOURCES[0].name, channel: 'meta_ads', by: null, first: SOURCES[0].first_message };
+chats[1].src = { sourceId: 's2', label: SOURCES[1].name, channel: 'google_ads', by: 'Rani', first: 'Kak, paket Juragan bisa nego?' };
+chats[3].src = { sourceId: null, label: null, channel: 'unknown', by: null, first: 'info iklan' };
+chats[4].src = { sourceId: 's1', label: SOURCES[0].name, channel: 'meta_ads', by: null, first: SOURCES[0].first_message };
+
 const QUICK: QuickReply[] = [
   { id: 'q1', shortcut: 'salam', title: 'Salam pembuka', body: 'Hi kak, terima kasih sudah menghubungi Prof Toko Online. Boleh tau toko kakak jualan apa ya?' },
   { id: 'q2', shortcut: 'paket', title: 'Info paket', body: 'Untuk kelola toko Shopee ada beberapa pilihan paket kak, mulai dari New Store sampai Big Company. Pilihannya tergantung omzet dan jumlah produk toko kakak.' },
@@ -33,6 +43,7 @@ const QUICK: QuickReply[] = [
 ];
 
 const chatChat = (c: DemoChat) => c.messages.filter((m) => m.sender !== 'note');
+const srcOf = (c: DemoChat): ChatSource | null => (c.src ? { label: c.src.label, channel: c.src.channel, by: c.src.by } : null);
 const summary = (c: DemoChat): ConversationSummary => {
   const list = chatChat(c);
   const last = list[list.length - 1];
@@ -45,6 +56,7 @@ const summary = (c: DemoChat): ConversationSummary => {
     lastText: last.text.length > 90 ? `${last.text.slice(0, 87)}...` : last.text, lastAt: last.at, lastFromMe: last.sender !== 'lead',
     unserved: last.sender === 'lead', waitingSince: last.sender === 'lead' ? waiting : null, status: c.status, lead: c.lead, botReplies: c.botReplies,
     assignedTo: c.assignedTo, resolved: c.resolved && !(lastLead && lastLead.at > ago(0)),
+    source: srcOf(c),
   };
 };
 
@@ -56,6 +68,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   const b: any = body;
 
   if (parts[0] === 'bible') return bibleDemo(parts, method, b);
+  if (parts[0] === 'sources') return sourcesDemo(parts, method, b, url);
   if (parts[0] === 'agents') return json({ agents: AGENTS });
   if (parts[0] === 'quick-replies') {
     if (method === 'GET') return json({ quickReplies: QUICK });
@@ -86,7 +99,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
       id: chat.id, phone: chat.phone, name: chat.name, messages: [...chat.messages].sort((x, y) => x.at.localeCompare(y.at)),
       bot: { status: chat.status, replies: chat.botReplies, reason: chat.status === 'human' ? 'A salesperson replied.' : null, lead: chat.lead },
       botLog: chat.messages.filter((m) => m.sender === 'bot').map((m) => ({ reply: m.text, handoff: /tim kami/i.test(m.text), ok: true, detail: null, created_at: m.at })),
-      assignedTo: chat.assignedTo, resolved: summary(chat).resolved, client: chat.client ?? null, deals: chat.deals ?? [],
+      assignedTo: chat.assignedTo, resolved: summary(chat).resolved, source: srcOf(chat), sourceId: chat.src?.sourceId ?? null, firstMessage: chat.src?.first ?? null, client: chat.client ?? null, deals: chat.deals ?? [],
     };
     return json(t);
   }
@@ -110,6 +123,13 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     chat.assignedTo = { id: a.id, name: a.name };
     return json({ ok: true, assignedTo: chat.assignedTo });
   }
+  if (leaf === 'source' && method === 'POST') {
+    const sid = b?.sourceId ?? null;
+    const sdef = sid ? SOURCES.find((x) => x.id === sid) : null;
+    if (sid && !sdef) return json({ error: 'That source does not exist.' }, 400);
+    chat.src = { sourceId: sid, label: sdef?.name ?? null, channel: sdef?.channel ?? 'unknown', by: sid ? 'Demo' : null, first: chat.src?.first ?? chat.messages.find((m) => m.sender === 'lead')?.text ?? '' };
+    return json({ ok: true, source: { id: sid, label: sdef?.name ?? null, channel: sdef?.channel ?? 'unknown' } });
+  }
   if (leaf === 'resolve' && method === 'POST') { chat.resolved = b?.resolved !== false; return json({ ok: true }); }
   if (leaf === 'notes' && method === 'POST') {
     const text = String(b?.text ?? '').trim();
@@ -124,7 +144,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   return json({ error: 'Not found.' }, 404);
 }
 
-// ---------------------------------------------------------------- AI Bible (demo)
+// ---------------------------------------------------------------- AI Kamus (demo)
 const DECK_TEXT = `TENTANG KAMI
 Prof Toko Online mengelola toko Shopee dan iklannya supaya penjualan naik. Laporan performa dikirim tiap minggu lewat WhatsApp.
 
@@ -150,15 +170,24 @@ const docs: BibleDocFull[] = [
 ];
 const settings: BotSettings = { enabled: true, persona_name: 'Fefe', company_name: 'Prof Toko Online', hours_from: '08:00', hours_to: '21:00', max_replies: 4, knowledge: 'TENTANG KAMI\nProf Toko Online membantu toko online supaya penjualannya naik.\nISI: alamat kantor dan jam kerja tim.' };
 
+const demoLog: BibleLogEntry[] = [
+  { id: 'l1', doc_id: 'b0', doc_title: 'Sales Deck September 2026', action: 'uploaded', by_name: 'Nico', detail: 'Sales-Deck-Sep.pdf (3030 KB), version 1', created_at: dayAgo(75) },
+  { id: 'l2', doc_id: 'b1', doc_title: 'Sales Deck Oktober 2026', action: 'new_version', by_name: 'Nico', detail: 'Sales-Deck-Okt.pdf (3320 KB), version 2. The previous version was switched off.', created_at: dayAgo(41) },
+  { id: 'l3', doc_id: 'b2', doc_title: 'Daftar harga Meta Ads', action: 'uploaded', by_name: 'Vani', detail: 'meta.pdf (781 KB), version 1', created_at: dayAgo(6) },
+  { id: 'l4', doc_id: 'b2', doc_title: 'Daftar harga Meta Ads', action: 'edited', by_name: 'Vani', detail: 'The text was changed by hand (96 to 120 characters).', created_at: dayAgo(2) },
+];
+const addLog = (doc: { id: string | null; title: string }, action: string, detail?: string) => demoLog.push({ id: `l${Date.now()}${demoLog.length}`, doc_id: doc.id, doc_title: doc.title, action, by_name: 'Demo', detail: detail ?? null, created_at: new Date().toISOString() });
+
 function bibleDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
   const slim = (d: BibleDocFull) => { const { text, ...rest } = d; void text; return rest; };
-  if (parts.length === 1) return json({ docs: [...docs].sort((x, y) => y.created_at.localeCompare(x.created_at)).map(slim), settings, canEdit: true });
+  if (parts.length === 1) return json({ docs: [...docs].sort((x, y) => y.created_at.localeCompare(x.created_at)).map(slim), log: [...demoLog].sort((x, y) => y.created_at.localeCompare(x.created_at)), settings, canEdit: true });
   if (parts[1] === 'upload-url') return json({ ok: true, path: `demo/${Date.now()}-${String(b?.fileName ?? 'deck.pdf')}`, token: 'demo', bucket: 'ai-bible' });
   if (parts[1] === 'ingest') {
     const old = b?.replaces ? docs.find((d) => d.id === b.replaces) : undefined;
     if (old) old.active = false;
     const doc: BibleDocFull = { id: `b${Date.now()}`, title: String(b?.title || 'Sales Deck'), kind: 'sales_deck', file_name: 'deck.pdf', file_size: 2_000_000, status: 'ready', error: null, active: true, version: old ? old.version + 1 : 1, replaces: old?.id ?? null, uploaded_by: 'Demo', created_at: new Date().toISOString(), text_updated_at: new Date().toISOString(), text_updated_by: 'Demo', chars: DECK_TEXT.length, text: DECK_TEXT };
     docs.push(doc);
+    addLog({ id: doc.id, title: doc.title }, old ? 'new_version' : 'uploaded', `deck.pdf (1953 KB), version ${doc.version}${old ? '. The previous version was switched off.' : ''}`);
     return json({ ok: true, doc });
   }
   if (parts[1] === 'ask') {
@@ -167,15 +196,52 @@ function bibleDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): 
     const live = docs.filter((d) => d.active).map((d) => d.text).join('\n').split('\n');
     const words = q.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !['berapa', 'harga', 'paket', 'apa', 'yang', 'untuk'].includes(w));
     const hits = live.filter((l) => words.some((w) => l.toLowerCase().includes(w)));
-    return json({ ok: true, answer: hits.length ? hits.slice(0, 3).join('\n') : 'Itu belum ada di AI Bible.', model: 'demo' });
+    return json({ ok: true, answer: hits.length ? hits.slice(0, 3).join('\n') : 'Itu belum ada di AI Kamus.', model: 'demo' });
   }
-  if (parts[1] === 'settings' && method === 'POST') { Object.assign(settings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
+  if (parts[1] === 'settings' && method === 'POST') { addLog({ id: null, title: 'Bot script and settings' }, 'settings', typeof b?.enabled === 'boolean' ? `The bot was switched ${b.enabled ? 'ON' : 'OFF'}.` : 'The script was saved.'); Object.assign(settings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
   const doc = docs.find((d) => d.id === parts[1]);
   if (!doc) return json({ error: 'Document not found.' }, 404);
   if (method === 'GET') return json(doc);
-  if (method === 'DELETE') { docs.splice(docs.indexOf(doc), 1); return json({ ok: true }); }
+  if (method === 'DELETE') { docs.splice(docs.indexOf(doc), 1); addLog({ id: null, title: doc.title }, 'deleted', 'The document and its file were deleted.'); return json({ ok: true }); }
   if (typeof b?.title === 'string' && b.title.trim()) doc.title = b.title.trim();
+  if (typeof b?.text === 'string' && b.text !== doc.text) addLog({ id: doc.id, title: doc.title }, 'edited', `The text was changed by hand (${doc.text.length} to ${b.text.length} characters).`);
+  if (typeof b?.active === 'boolean' && b.active !== doc.active) addLog({ id: doc.id, title: doc.title }, b.active ? 'switched_on' : 'switched_off');
   if (typeof b?.text === 'string') { doc.text = b.text; doc.chars = b.text.length; doc.text_updated_at = new Date().toISOString(); doc.text_updated_by = 'Demo'; }
   if (typeof b?.active === 'boolean') doc.active = b.active;
   return json({ ok: true });
+}
+
+// ---------------------------------------------------------------- lead sources (demo)
+function sourcesDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any, url: URL): NextResponse {
+  if (parts.length === 1 && method === 'GET') return json({ sources: SOURCES, canEdit: true });
+  if (parts.length === 1 && method === 'POST') {
+    const name = String(b?.name ?? '').trim(); const msg = String(b?.first_message ?? '').trim();
+    if (!name) return json({ error: 'Give the source a name, like "Meta Ads: Promo Paket Sultan".' }, 400);
+    if (msg.replace(/[^a-z0-9]/gi, '').length < 12) return json({ error: 'Paste the whole first message the ad pre-fills in WhatsApp (at least a short sentence).' }, 400);
+    const existing = b?.id ? SOURCES.find((x) => x.id === b.id) : undefined;
+    const channel = (['meta_ads', 'google_ads', 'tiktok_ads', 'organic', 'referral', 'other'].includes(b?.channel) ? b.channel : 'other') as Channel;
+    if (existing) Object.assign(existing, { name, channel, first_message: msg, active: b?.active !== false });
+    else SOURCES.unshift({ id: `s${Date.now()}`, name, channel, first_message: msg, active: b?.active !== false, created_at: new Date().toISOString(), created_by: 'Demo' });
+    return json({ ok: true });
+  }
+  if (parts[1] === 'rescan' && method === 'POST') return json({ ok: true, checked: chats.length, matched: 1 });
+  if (parts[1] === 'report') {
+    const days = Number(url.searchParams.get('days') || 30);
+    const rows: SourceReport['rows'] = [
+      { key: 's1', label: 'Meta Ads: Promo Paket Sultan', channel: 'meta_ads', leads: 42, clients: 11, deals: 9, won: 4, wonValue: 16000000 },
+      { key: 's2', label: 'Google Ads: Kelola Toko Shopee', channel: 'google_ads', leads: 18, clients: 6, deals: 5, won: 2, wonValue: 6000000 },
+      { key: 'none:unknown', label: 'No source found', channel: 'unknown', leads: 9, clients: 1, deals: 1, won: 0, wonValue: 0 },
+    ];
+    const total = rows.reduce((t, r) => ({ leads: t.leads + r.leads, clients: t.clients + r.clients, deals: t.deals + r.deals, won: t.won + r.won, wonValue: t.wonValue + r.wonValue }), { leads: 0, clients: 0, deals: 0, won: 0, wonValue: 0 });
+    const rep: SourceReport = {
+      days, rows, total, sources: SOURCES.length,
+      channels: [{ channel: 'meta_ads', leads: 42, clients: 11, deals: 9, won: 4, wonValue: 16000000 }, { channel: 'google_ads', leads: 18, clients: 6, deals: 5, won: 2, wonValue: 6000000 }, { channel: 'unknown', leads: 9, clients: 1, deals: 1, won: 0, wonValue: 0 }],
+      unmatched: chats.filter((c) => c.src && !c.src.sourceId).map((c) => ({ group_id: c.id, name: c.name, first_message: c.src!.first, at: c.messages[0].at })),
+    };
+    return json(rep);
+  }
+  const i = SOURCES.findIndex((x) => x.id === parts[1]);
+  if (i < 0) return json({ error: 'Source not found.' }, 404);
+  if (method === 'DELETE') { SOURCES.splice(i, 1); return json({ ok: true }); }
+  return json({ error: 'Not found.' }, 404);
 }
