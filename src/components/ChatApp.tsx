@@ -64,6 +64,7 @@ const I = {
   check: 'M20 6L9 17l-5-5',
   note: 'M4 4h16v12l-4 4H4V4zm12 12v4M8 9h8M8 13h5',
   bolt: 'M13 2L4 14h7l-1 8 9-12h-7l1-8z',
+  lock: 'M7 11V7a5 5 0 0110 0v4M5 11h14v10H5V11z',
   clip: 'M21 12.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.3 3.3 0 014.7 4.7l-9 9a1.7 1.7 0 01-2.4-2.4l8.3-8.3',
 };
 
@@ -149,6 +150,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [labelFilter, setLabelFilter] = useState('');
   const [allLabels, setAllLabels] = useState<ChatLabel[]>([]);
   const [attach, setAttach] = useState<File | null>(null);
+  const [mediaOn, setMediaOn] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const remSeen = useRef<Set<string> | null>(null);
   const [alertsOn, setAlertsOn] = useState(false);
@@ -169,7 +171,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
     const qs = new URLSearchParams({ filter, ...(q.trim() ? { q: q.trim() } : {}), ...(labelFilter ? { label: labelFilter } : {}) });
     const r = await api<ListResponse>(`/conversations?${qs}`);
     if (!r.ok) { if (r.status === 401 || r.status === 403) setAuthLost(true); else setListError(r.error); return; }
-    setAuthLost(false); setListError(null); setList(r.data.conversations); setCounts(r.data.counts); if (r.data.me) setMe(r.data.me); if (r.data.labels) setAllLabels(r.data.labels);
+    setAuthLost(false); setListError(null); setList(r.data.conversations); setCounts(r.data.counts); if (r.data.me) setMe(r.data.me); if (r.data.labels) setAllLabels(r.data.labels); setMediaOn(r.data.features?.media === true);
   }, [filter, q, labelFilter]);
 
   useEffect(() => { const t = setTimeout(loadList, q ? 250 : 0); return () => clearTimeout(t); }, [loadList, q]);
@@ -251,7 +253,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const send = async () => {
     const body = text.trim();
     if (!selected || sending) return;
-    if (attach && mode === 'reply') {
+    if (attach && mode === 'reply' && mediaOn) {
       setSending(true); setNotice(null);
       const ok = await sendImage(attach);
       setSending(false);
@@ -450,7 +452,9 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   <>
                     <button onClick={suggest} disabled={suggesting} className="flex items-center gap-1.5 rounded-lg border border-brand/40 px-2.5 py-1 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft disabled:opacity-50" title="The AI writes a draft from the bot's knowledge. Nothing is sent."><Icon d={I.spark} size={14} />{suggesting ? 'Writing...' : 'Suggest reply'}</button>
                     <button onClick={() => setQrOpen(true)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft" title="Type / in the box to use a quick reply"><Icon d={I.bolt} size={14} />Quick replies</button>
-                    <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft" title="Send a photo (the text becomes its caption)"><Icon d={I.clip} size={14} />Photo</button>
+                    <button onClick={() => (mediaOn ? fileRef.current?.click() : setNotice({ kind: 'info', text: "Sending photos is locked: the sales number's Fonnte package does not include attachments yet. After upgrading, an admin can switch it on in AI Kamus > Bot script & settings." }))}
+                      aria-disabled={!mediaOn} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition ${mediaOn ? 'text-ink-soft hover:bg-brand-soft' : 'cursor-not-allowed text-[#a9b8c7]'}`}
+                      title={mediaOn ? 'Send a photo (the text becomes its caption)' : 'Locked: needs a Fonnte package with attachments on the sales number'}><Icon d={mediaOn ? I.clip : I.lock} size={14} />Photo{!mediaOn && <span className="rounded bg-[#eef2f6] px-1 text-[9.5px] font-extrabold uppercase tracking-wide">Locked</span>}</button>
                     <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { setAttach(f); setNotice(null); boxRef.current?.focus(); } }} />
                   </>
                 )}

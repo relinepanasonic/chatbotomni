@@ -122,7 +122,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     const label = url.searchParams.get('label') || '';
     const open = all.filter((c) => !c.resolved);
     const list = all.filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : f === 'followup' ? !!c.nextReminder && c.nextReminder.state !== 'later' : true)) && (!label || (c.labels || []).some((l) => l.id === label)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
-    const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.length - open.length, followup: open.filter((c) => c.nextReminder && c.nextReminder.state !== 'later').length }, labels: LABELS };
+    const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.length - open.length, followup: open.filter((c) => c.nextReminder && c.nextReminder.state !== 'later').length }, labels: LABELS, features: { media: settings.media_enabled === true } };
     return json(res);
   }
   const chat = chats.find((c) => c.id === parts[1]);

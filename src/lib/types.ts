@@ -20,7 +20,7 @@ export interface ConversationSummary {
   nextReminder?: NextReminder | null;
 }
 export interface Counts { all: number; mine: number; unserved: number; bot: number; human: number; resolved: number; followup?: number }
-export interface ListResponse { me?: { id: string; name: string; role: string }; conversations: ConversationSummary[]; counts: Counts; labels?: ChatLabel[] }
+export interface ListResponse { me?: { id: string; name: string; role: string }; conversations: ConversationSummary[]; counts: Counts; labels?: ChatLabel[]; features?: { media: boolean } }
 
 export type Sender = 'lead' | 'bot' | 'team' | 'note';
 export interface ThreadMessage { id: string; sender: Sender; senderName: string | null; text: string; mediaType: string | null; at: string; mediaUrl?: string | null }
@@ -48,7 +48,7 @@ export interface BibleDoc {
   uploaded_by: string | null; created_at: string; text_updated_at: string; text_updated_by: string | null; chars: number;
 }
 export interface BibleDocFull extends BibleDoc { text: string }
-export interface BotSettings { enabled: boolean; persona_name: string; company_name: string; hours_from: string; hours_to: string; max_replies: number; knowledge: string }
+export interface BotSettings { enabled: boolean; media_enabled?: boolean; persona_name: string; company_name: string; hours_from: string; hours_to: string; max_replies: number; knowledge: string }
 export interface BibleLogEntry { id: string; doc_id: string | null; doc_title: string; action: string; by_name: string | null; detail: string | null; created_at: string }
 export interface BibleResponse { docs: BibleDoc[]; log: BibleLogEntry[]; settings: BotSettings; canEdit: boolean }
 export interface UploadTarget { ok: true; path: string; token: string; bucket: string }
