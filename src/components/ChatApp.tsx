@@ -12,8 +12,8 @@ import { QuickReplyManager } from './QuickReplyManager';
  * and pauses the bot for that chat. Also: assign a chat, resolve it, private notes, /quick replies, an AI suggested reply, new-chat alerts and a waiting timer.
  */
 
-const POLL_LIST_MS = 6000;
-const POLL_THREAD_MS = 3500;
+const POLL_LIST_MS = 8000;
+const POLL_THREAD_MS = 5000;
 
 const TABS: Array<{ key: ChatFilter; label: string; count: (c: Counts) => number }> = [
   { key: 'mine', label: 'Mine', count: (c) => c.mine },
@@ -74,16 +74,14 @@ function StatusChip({ c }: { c: ConversationSummary }) {
   return <span className="rounded-full bg-[#eef2f6] px-2 py-0.5 text-[10px] font-bold text-ink-soft">{c.status === 'off' ? 'Bot off' : 'New'}</span>;
 }
 
-function Rail({ erpUrl }: { erpUrl: string }) {
+function Rail() {
   const item = 'flex h-11 w-11 items-center justify-center rounded-xl text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white';
   return (
     <nav className="hidden w-[68px] shrink-0 flex-col items-center gap-2 bg-gradient-to-b from-[#4aaaf5] to-[#2380d8] py-4 md:flex" aria-label="Main">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo.png" alt="Professor Online chat" width={46} height={46} className="mb-3 h-[46px] w-[46px] drop-shadow-[0_2px_4px_rgba(10,60,120,0.35)]" />
       <span className={`${item} bg-white/20 !text-white`} title="Inbox" aria-current="page"><Icon d={I.inbox} /></span>
-      <a className={item} href={`${erpUrl}/hrd/wa/sales`} title="Bot script and settings (in the ERP)"><Icon d={I.bot} /></a>
-      <a className={item} href={`${erpUrl}/contacts`} title="Contacts (in the ERP)"><Icon d={I.users} /></a>
-      <a className={`${item} mt-auto`} href={erpUrl} title="Back to the ERP"><Icon d={I.gear} /></a>
+      <span className={`${item} cursor-default`} title="AI Bible (coming next)"><Icon d={I.bot} /></span>
     </nav>
   );
 }
@@ -147,6 +145,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [slashIdx, setSlashIdx] = useState(0);
   const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
   const [authLost, setAuthLost] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
   const [alertsOn, setAlertsOn] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const endRef = useRef<HTMLDivElement>(null);
@@ -164,12 +163,18 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const loadList = useCallback(async () => {
     const qs = new URLSearchParams({ filter, ...(q.trim() ? { q: q.trim() } : {}) });
     const r = await api<ListResponse>(`/conversations?${qs}`);
-    if (!r.ok) { if (r.status === 401 || r.status === 403) setAuthLost(true); else setNotice({ kind: 'error', text: r.error }); return; }
-    setAuthLost(false); setList(r.data.conversations); setCounts(r.data.counts); if (r.data.me) setMe(r.data.me);
+    if (!r.ok) { if (r.status === 401 || r.status === 403) setAuthLost(true); else setListError(r.error); return; }
+    setAuthLost(false); setListError(null); setList(r.data.conversations); setCounts(r.data.counts); if (r.data.me) setMe(r.data.me);
   }, [filter, q]);
 
   useEffect(() => { const t = setTimeout(loadList, q ? 250 : 0); return () => clearTimeout(t); }, [loadList, q]);
-  useEffect(() => { const t = setInterval(loadList, POLL_LIST_MS); return () => clearInterval(t); }, [loadList]);
+  // Poll only while the tab is on screen, and catch up the moment it comes back.
+  useEffect(() => {
+    const tick = () => { if (!document.hidden) void loadList(); };
+    const t = setInterval(tick, POLL_LIST_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); };
+  }, [loadList]);
 
   // New-chat alerts: a chat that became unserved, or got a newer message while unserved, since the last look. The first load only remembers.
   useEffect(() => {
@@ -204,8 +209,10 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   useEffect(() => {
     if (!selected) return;
     setThread(null); lastCount.current = 0; loadThread(selected);
-    const t = setInterval(() => loadThread(selected), POLL_THREAD_MS);
-    return () => clearInterval(t);
+    const tick = () => { if (!document.hidden) void loadThread(selected); };
+    const t = setInterval(tick, POLL_THREAD_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); };
   }, [selected, loadThread]);
 
   useEffect(() => {
@@ -268,7 +275,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink">
-      <Rail erpUrl={erpUrl} />
+      <Rail />
 
       {/* ------------------------------------------------ 1. inbox list */}
       <section className={`${selected ? 'hidden lg:flex' : 'flex'} w-full shrink-0 flex-col border-r border-line bg-panel lg:w-[360px]`} aria-label="Conversations">
@@ -300,7 +307,10 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
           })}
         </div>
         <ul className="min-h-0 flex-1 overflow-y-auto" role="list">
-          {list === null && !authLost && <li className="p-6 text-center text-[13px] text-ink-soft">Loading chats...</li>}
+          {list === null && !authLost && !listError && <li className="p-6 text-center text-[13px] text-ink-soft">Loading chats...</li>}
+          {list === null && !authLost && listError && (
+            <li className="p-6 text-center text-[13px]"><p className="text-bad">{listError}</p><button onClick={() => { setListError(null); void loadList(); }} className="mt-2 rounded-lg bg-brand px-3 py-1.5 text-[12px] font-bold text-white hover:bg-brand-dark">Try again</button></li>
+          )}
           {authLost && <li className="p-6 text-center text-[13px] text-bad">Please sign in to the ERP again, then refresh this page.</li>}
           {list?.length === 0 && <li className="p-6 text-center text-[13px] text-ink-soft">{q ? 'No chat matches your search.' : filter === 'mine' ? 'No chat is assigned to you yet.' : 'No chats here yet.'}</li>}
           {list?.map((c) => {
