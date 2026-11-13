@@ -290,6 +290,15 @@ function SettingsTab({ initial, canEdit, say }: { initial: BotSettings; canEdit:
           <input type="checkbox" checked={s.enabled} disabled={!canEdit || busy} onChange={(e) => void toggle(e.target.checked)} className="h-5 w-5 accent-[#2f9bf0]" />{s.enabled ? 'ON' : 'OFF'}
         </label>
       </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4">
+        <div className="max-w-xl">
+          <h2 className="text-[14.5px] font-extrabold">Send photos from the inbox</h2>
+          <p className="text-[12.5px] text-ink-soft">Needs a Fonnte package with attachments (Super or higher) on the sales number. While it is off, the Photo button in the inbox shows as locked.</p>
+        </div>
+        <label className={`flex items-center gap-2 text-[13px] font-bold ${canEdit ? 'cursor-pointer' : 'opacity-60'}`}>
+          <input type="checkbox" checked={!!s.media_enabled} disabled={!canEdit || busy} onChange={async (e) => { const on = e.target.checked; setS({ ...s, media_enabled: on }); if (!(await save({ media_enabled: on }, on ? 'Photos are unlocked in the inbox.' : 'Photos are locked in the inbox.'))) setS((x) => ({ ...x, media_enabled: !on })); }} className="h-5 w-5 accent-[#2f9bf0]" />{s.media_enabled ? 'ON' : 'OFF'}
+        </label>
+      </div>
       <div className="grid gap-3 rounded-2xl border border-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="text-[12px] font-semibold text-ink-soft">Name<input className={`${field} mt-1`} value={s.persona_name} disabled={!canEdit} onChange={(e) => setS({ ...s, persona_name: e.target.value })} /></label>
         <label className="text-[12px] font-semibold text-ink-soft">Company<input className={`${field} mt-1`} value={s.company_name} disabled={!canEdit} onChange={(e) => setS({ ...s, company_name: e.target.value })} /></label>
