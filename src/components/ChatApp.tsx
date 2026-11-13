@@ -5,7 +5,8 @@ import { channelLabel, type Agent, type ChatFilter, type ChatStatus, type Conver
 import { dayLabel, timeLabel, shortTime, waitLabel, waitMinutes, waitTone } from '@/lib/format';
 import { askNotifyPermission, beep, notify, notifySupported } from '@/lib/alerts';
 import { QuickReplyManager } from './QuickReplyManager';
-import { LABEL_CLASS, LabelsBlock, LeadBlock, RemindersBlock } from './ChatExtras';
+import { LABEL_CLASS } from './ChatExtras';
+import { CustomerPanel } from './CustomerPanel';
 import { uploadToSignedUrl } from '@/lib/upload';
 import { timeLabel as clock } from '@/lib/format';
 import { Rail } from './Rail';
@@ -114,17 +115,6 @@ function Bubble({ m }: { m: ThreadMessage }) {
   );
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="border-t border-line px-5 py-3.5">
-      <h4 className="mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-soft">{title}</h4>
-      {children}
-    </section>
-  );
-}
-const Row = ({ k, v }: { k: string; v: string }) => (
-  <div className="flex justify-between gap-3"><dt className="text-ink-soft">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>
-);
 
 /* ------------------------------------------------------------------ the app */
 export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
@@ -489,89 +479,10 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
         )}
       </section>
 
-      {/* ------------------------------------------------ 3. customer info */}
+      {/* ------------------------------------------------ 3. the customer: who, what next, the deal, details */}
       {selected && current && (
-        <aside className="hidden w-[300px] shrink-0 flex-col overflow-y-auto border-l border-line bg-panel xl:flex" aria-label="Chat and customer info">
-          <div className="px-5 pb-4 pt-5 text-center">
-            <div className="flex justify-center"><Avatar name={current.name} initials={current.initials} size={64} /></div>
-            <h3 className="mt-2 text-[15px] font-extrabold">{thread?.client?.name || current.name}</h3>
-            <p className="text-[12px] text-ink-soft">+{current.phone}</p>
-            <p className="text-[11px] text-ink-soft">WhatsApp · Sales number</p>
-          </div>
-
-          <Block title="Handling">
-            <dl className="space-y-1 text-[12.5px]">
-              <Row k="Handled by" v={assigned?.name || 'Nobody yet'} />
-              <Row k="State" v={resolved ? 'Resolved' : current.unserved ? 'Waiting for a reply' : 'Open'} />
-              {current.unserved && !resolved && <Row k="Waiting" v={waitLabel(waitMinutes(current.waitingSince, now))} />}
-            </dl>
-          </Block>
-
-          <Block title="Where the lead came from">
-            {thread?.firstMessage || thread?.source ? (
-              <div className="space-y-2 text-[12.5px]">
-                <dl className="space-y-1">
-                  <Row k="Channel" v={thread.source ? channelLabel(thread.source.channel) : 'Unknown'} />
-                  <Row k="Ad" v={thread.source?.label || 'No ad matched'} />
-                  {thread.source?.by && <Row k="Set by" v={thread.source.by} />}
-                </dl>
-                {thread.firstMessage && <blockquote className="border-l-4 border-brand/40 pl-2 italic text-ink-soft">&ldquo;{thread.firstMessage}&rdquo;</blockquote>}
-                <label className="block text-[11px] font-semibold text-ink-soft">Change the source
-                  <select value={thread.sourceId ?? ''} onChange={(e) => act('source', { sourceId: e.target.value || null })} aria-label="Lead source" className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-semibold text-ink outline-none focus:border-brand">
-                    <option value="">No ad / unknown</option>
-                    {thread.sourceId && !leadSources.some((x) => x.id === thread.sourceId) && <option value={thread.sourceId}>{thread.source?.label}</option>}
-                    {leadSources.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                  </select>
-                </label>
-              </div>
-            ) : <p className="text-[12.5px] text-ink-soft">The first message will be saved here and compared with your ads.</p>}
-          </Block>
-
-          {thread && (
-            <Block title="Labels">
-              <LabelsBlock groupId={thread.id} onChat={thread.labels ?? []} all={allLabels} onChanged={() => void refresh()} />
-            </Block>
-          )}
-
-          {thread && (
-            <Block title={`Follow-up${thread.reminders?.filter((r) => !r.doneAt).length ? ` (${thread.reminders.filter((r) => !r.doneAt).length})` : ''}`}>
-              <RemindersBlock thread={{ ...thread, reminders: thread.reminders ?? [] }} agents={agents} me={me} onChanged={() => void refresh()} />
-            </Block>
-          )}
-
-          <Block title="Customer">
-            {thread?.client ? (
-              <dl className="space-y-1 text-[12.5px]">
-                <Row k="Client" v={thread.client.name} />
-                <Row k="Sales" v={thread.client.sales || '-'} />
-                {thread.client.serviceEnd && <Row k="Project ends" v={thread.client.serviceEnd} />}
-              </dl>
-            ) : <p className="text-[12.5px] text-ink-soft">Not in the ERP yet (no client with this number).</p>}
-          </Block>
-
-          <Block title="What the bot learned">
-            {thread?.bot.lead && (thread.bot.lead.name || thread.bot.lead.store || thread.bot.lead.need) ? (
-              <dl className="space-y-1 text-[12.5px]">
-                {thread.bot.lead.name && <Row k="Name" v={thread.bot.lead.name} />}
-                {thread.bot.lead.store && <Row k="Store" v={thread.bot.lead.store} />}
-                {thread.bot.lead.need && <Row k="Need" v={thread.bot.lead.need} />}
-              </dl>
-            ) : <p className="text-[12.5px] text-ink-soft">Nothing yet.</p>}
-          </Block>
-
-          <Block title="Bot">
-            <dl className="space-y-1 text-[12.5px]">
-              <Row k="Status" v={STATUS_LABEL[status]} />
-              <Row k="Bot messages" v={String(thread?.bot.replies ?? current.botReplies)} />
-              {thread?.bot.reason && <Row k="Why" v={thread.bot.reason} />}
-            </dl>
-            {status !== 'off' && <button onClick={() => setStatus('off')} className="mt-2 text-[11.5px] font-semibold text-ink-soft underline decoration-dotted hover:text-brand-dark">Switch the bot off for this chat</button>}
-          </Block>
-
-          <Block title={`Lead & deals (${thread?.deals.length ?? 0})`}>
-            {thread ? <LeadBlock thread={thread} me={me} agents={agents} onChanged={() => void refresh()} /> : <p className="text-[12.5px] text-ink-soft">Loading...</p>}
-          </Block>
-        </aside>
+        <CustomerPanel current={current} thread={thread} me={me} agents={agents} allLabels={allLabels} leadSources={leadSources}
+          status={status} assigned={assigned} resolved={resolved} onAct={act} onChanged={() => void refresh()} />
       )}
 
       {qrOpen && <QuickReplyManager items={quick} onClose={() => setQrOpen(false)} onChanged={() => void loadQuick()} />}
