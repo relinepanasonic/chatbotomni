@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import type { Agent, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
+import type { Agent, BibleDocFull, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
 
 /** Made-up chats for previewing the design locally (DEMO=1, never in production). Nothing here touches the ERP or WhatsApp. */
 
@@ -55,6 +55,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   const parts = url.pathname.split('/').filter(Boolean);
   const b: any = body;
 
+  if (parts[0] === 'bible') return bibleDemo(parts, method, b);
   if (parts[0] === 'agents') return json({ agents: AGENTS });
   if (parts[0] === 'quick-replies') {
     if (method === 'GET') return json({ quickReplies: QUICK });
@@ -121,4 +122,60 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     return json({ ok: true, text: `Siap kak, terima kasih infonya${last ? ` soal "${last.text.slice(0, 30)}"` : ''}. Biar kami bisa bantu lebih pas, boleh tau omzet toko kakak sekarang kira-kira berapa per bulan?`, model: 'demo' });
   }
   return json({ error: 'Not found.' }, 404);
+}
+
+// ---------------------------------------------------------------- AI Bible (demo)
+const DECK_TEXT = `TENTANG KAMI
+Prof Toko Online mengelola toko Shopee dan iklannya supaya penjualan naik. Laporan performa dikirim tiap minggu lewat WhatsApp.
+
+PAKET OPTIMIZE SHOPEE (jasa per bulan, belum termasuk saldo iklan)
+Paket New Store: Rp 1.500.000 per bulan. Untuk toko baru. Termasuk 100x Friends Order dan foto + editing 10 produk.
+Paket Lapak: Rp 2.000.000 per bulan. Kelola akun Shopee, etalase, dan iklan.
+Paket Juragan: Rp 3.000.000 per bulan. Untuk toko dengan omzet menengah.
+Paket Sultan: Rp 4.000.000 per bulan. Untuk toko dengan banyak produk.
+Paket Big Company: Rp 5.000.000 per bulan. Untuk toko besar.
+
+TAMBAHAN
+Paket Meta Ads: Rp 3.000.000 per bulan, belum termasuk budget iklan Meta.
+Friends Order: Rp 350.000 per 20 order dalam 1 toko, pengerjaan 2 sampai 4 minggu.
+
+SYARAT
+Kontrak minimal 3 bulan. [TIDAK TERBACA: halaman 7]`;
+
+const dayAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
+const docs: BibleDocFull[] = [
+  { id: 'b1', title: 'Sales Deck Oktober 2026', kind: 'sales_deck', file_name: 'Sales-Deck-Okt.pdf', file_size: 3_400_000, status: 'ready', error: null, active: true, version: 2, replaces: 'b0', uploaded_by: 'Nico', created_at: dayAgo(41), text_updated_at: dayAgo(41), text_updated_by: 'Nico', chars: DECK_TEXT.length, text: DECK_TEXT },
+  { id: 'b0', title: 'Sales Deck September 2026', kind: 'sales_deck', file_name: 'Sales-Deck-Sep.pdf', file_size: 3_100_000, status: 'ready', error: null, active: false, version: 1, replaces: null, uploaded_by: 'Nico', created_at: dayAgo(75), text_updated_at: dayAgo(75), text_updated_by: 'Nico', chars: 900, text: 'Versi lama. Paket Sultan: Rp 3.500.000.' },
+  { id: 'b2', title: 'Daftar harga Meta Ads', kind: 'sales_deck', file_name: 'meta.pdf', file_size: 800_000, status: 'ready', error: null, active: true, version: 1, replaces: null, uploaded_by: 'Vani', created_at: dayAgo(6), text_updated_at: dayAgo(2), text_updated_by: 'Vani', chars: 120, text: 'Paket Meta Ads: Rp 3.000.000 per bulan, belum termasuk budget iklan.' },
+];
+const settings: BotSettings = { enabled: true, persona_name: 'Fefe', company_name: 'Prof Toko Online', hours_from: '08:00', hours_to: '21:00', max_replies: 4, knowledge: 'TENTANG KAMI\nProf Toko Online membantu toko online supaya penjualannya naik.\nISI: alamat kantor dan jam kerja tim.' };
+
+function bibleDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
+  const slim = (d: BibleDocFull) => { const { text, ...rest } = d; void text; return rest; };
+  if (parts.length === 1) return json({ docs: [...docs].sort((x, y) => y.created_at.localeCompare(x.created_at)).map(slim), settings, canEdit: true });
+  if (parts[1] === 'upload-url') return json({ ok: true, path: `demo/${Date.now()}-${String(b?.fileName ?? 'deck.pdf')}`, token: 'demo', bucket: 'ai-bible' });
+  if (parts[1] === 'ingest') {
+    const old = b?.replaces ? docs.find((d) => d.id === b.replaces) : undefined;
+    if (old) old.active = false;
+    const doc: BibleDocFull = { id: `b${Date.now()}`, title: String(b?.title || 'Sales Deck'), kind: 'sales_deck', file_name: 'deck.pdf', file_size: 2_000_000, status: 'ready', error: null, active: true, version: old ? old.version + 1 : 1, replaces: old?.id ?? null, uploaded_by: 'Demo', created_at: new Date().toISOString(), text_updated_at: new Date().toISOString(), text_updated_by: 'Demo', chars: DECK_TEXT.length, text: DECK_TEXT };
+    docs.push(doc);
+    return json({ ok: true, doc });
+  }
+  if (parts[1] === 'ask') {
+    const q = String(b?.question ?? '').toLowerCase().trim();
+    if (!q) return json({ error: 'Type a question first.' }, 400);
+    const live = docs.filter((d) => d.active).map((d) => d.text).join('\n').split('\n');
+    const words = q.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !['berapa', 'harga', 'paket', 'apa', 'yang', 'untuk'].includes(w));
+    const hits = live.filter((l) => words.some((w) => l.toLowerCase().includes(w)));
+    return json({ ok: true, answer: hits.length ? hits.slice(0, 3).join('\n') : 'Itu belum ada di AI Bible.', model: 'demo' });
+  }
+  if (parts[1] === 'settings' && method === 'POST') { Object.assign(settings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
+  const doc = docs.find((d) => d.id === parts[1]);
+  if (!doc) return json({ error: 'Document not found.' }, 404);
+  if (method === 'GET') return json(doc);
+  if (method === 'DELETE') { docs.splice(docs.indexOf(doc), 1); return json({ ok: true }); }
+  if (typeof b?.title === 'string' && b.title.trim()) doc.title = b.title.trim();
+  if (typeof b?.text === 'string') { doc.text = b.text; doc.chars = b.text.length; doc.text_updated_at = new Date().toISOString(); doc.text_updated_by = 'Demo'; }
+  if (typeof b?.active === 'boolean') doc.active = b.active;
+  return json({ ok: true });
 }

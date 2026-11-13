@@ -5,6 +5,7 @@ import type { Agent, ChatFilter, ChatStatus, ConversationSummary, Counts, ListRe
 import { dayLabel, timeLabel, shortTime, waitLabel, waitMinutes, waitTone } from '@/lib/format';
 import { askNotifyPermission, beep, notify, notifySupported } from '@/lib/alerts';
 import { QuickReplyManager } from './QuickReplyManager';
+import { Rail } from './Rail';
 
 /**
  * The chat inbox: conversations on the left, the chat in the middle, the customer on the right (like an omnichannel inbox), in light blue.
@@ -72,18 +73,6 @@ function StatusChip({ c }: { c: ConversationSummary }) {
   if (c.status === 'bot') return <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10px] font-bold text-brand-dark">Bot</span>;
   if (c.status === 'human') return <span className="rounded-full bg-ok-soft px-2 py-0.5 text-[10px] font-bold text-ok">Served</span>;
   return <span className="rounded-full bg-[#eef2f6] px-2 py-0.5 text-[10px] font-bold text-ink-soft">{c.status === 'off' ? 'Bot off' : 'New'}</span>;
-}
-
-function Rail() {
-  const item = 'flex h-11 w-11 items-center justify-center rounded-xl text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white';
-  return (
-    <nav className="hidden w-[68px] shrink-0 flex-col items-center gap-2 bg-gradient-to-b from-[#4aaaf5] to-[#2380d8] py-4 md:flex" aria-label="Main">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.png" alt="Professor Online chat" width={46} height={46} className="mb-3 h-[46px] w-[46px] drop-shadow-[0_2px_4px_rgba(10,60,120,0.35)]" />
-      <span className={`${item} bg-white/20 !text-white`} title="Inbox" aria-current="page"><Icon d={I.inbox} /></span>
-      <span className={`${item} cursor-default`} title="AI Bible (coming next)"><Icon d={I.bot} /></span>
-    </nav>
-  );
 }
 
 function Bubble({ m }: { m: ThreadMessage }) {
@@ -274,8 +263,8 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   }, [thread]);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink">
-      <Rail />
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+      <Rail active="inbox" />
 
       {/* ------------------------------------------------ 1. inbox list */}
       <section className={`${selected ? 'hidden lg:flex' : 'flex'} w-full shrink-0 flex-col border-r border-line bg-panel lg:w-[360px]`} aria-label="Conversations">
