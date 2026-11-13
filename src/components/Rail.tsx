@@ -2,11 +2,11 @@ import React from 'react';
 import Link from 'next/link';
 
 /** The left sidebar: the app's own pages only (nothing leads back to the ERP). */
-export type RailPage = 'inbox' | 'bible';
+export type RailPage = 'inbox' | 'kamus';
 
 const PATHS = {
   inbox: 'M3 13l2.5-7.5A2 2 0 017.4 4h9.2a2 2 0 011.9 1.5L21 13m-18 0v5a2 2 0 002 2h14a2 2 0 002-2v-5m-18 0h5l1 2h6l1-2h5',
-  bible: 'M4 5a2 2 0 012-2h12v16H6a2 2 0 00-2 2V5zm0 14a2 2 0 002 2h12M9 7h6M9 11h6',
+  kamus: 'M4 5a2 2 0 012-2h12v16H6a2 2 0 00-2 2V5zm0 14a2 2 0 002 2h12M9 7h6M9 11h6',
   spark: 'M18 3l.9 2.1L21 6l-2.1.9L18 9l-.9-2.1L15 6l2.1-.9L18 3z',
 };
 
@@ -16,7 +16,7 @@ const Svg = ({ d, size = 22 }: { d: string; size?: number }) => (
 
 const ITEMS: Array<{ page: RailPage; href: string; label: string; icon: string }> = [
   { page: 'inbox', href: '/', label: 'Inbox', icon: PATHS.inbox },
-  { page: 'bible', href: '/bible', label: 'AI Bible', icon: PATHS.bible },
+  { page: 'kamus', href: '/kamus', label: 'AI Kamus', icon: PATHS.kamus },
 ];
 
 export function Rail({ active }: { active: RailPage }) {

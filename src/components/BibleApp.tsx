@@ -1,17 +1,17 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { BibleDoc, BibleDocFull, BibleResponse, BotSettings, UploadTarget } from '@/lib/types';
-import { ageLabel, isStale, sizeLabel } from '@/lib/format';
+import type { BibleDoc, BibleDocFull, BibleLogEntry, BibleResponse, BotSettings, UploadTarget } from '@/lib/types';
+import { ageLabel, dateTimeLabel, isStale, sizeLabel } from '@/lib/format';
 import { uploadToSignedUrl } from '@/lib/upload';
 import { Rail } from './Rail';
 
 /**
- * The AI Bible: what the sales bot and "Suggest reply" know. The Sales Deck (a PDF) is uploaded here, Claude reads it, and the text can be corrected
+ * The AI Kamus (the AI's dictionary): what the sales bot and "Suggest reply" know. The Sales Deck (a PDF) is uploaded here, Claude reads it, and the text can be corrected
  * by hand when a price changes. Also: the bot's switch, name, hours and script, and a box to ask the AI a question to check it read the deck right.
  */
 
-type Tab = 'docs' | 'settings' | 'ask';
+type Tab = 'docs' | 'settings' | 'ask' | 'history';
 type Step = 'idle' | 'preparing' | 'uploading' | 'reading';
 
 async function api<T>(path: string, init?: RequestInit): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string }> {
@@ -32,6 +32,7 @@ const I = {
   upload: 'M12 16V4m0 0l-4 4m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2',
   file: 'M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5zM14 3v5h5M9 13h6M9 17h6',
   alert: 'M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
+  check: 'M20 6L9 17l-5-5',
   spark: 'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z',
 };
 
@@ -113,21 +114,21 @@ export function BibleApp({ demo }: { demo: boolean }) {
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
-      <Rail active="bible" />
+      <Rail active="kamus" />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
           <header className="mb-5">
-            <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">AI Bible {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
+            <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">AI Kamus {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
             <p className="mt-1 text-[13.5px] text-ink-soft">What the sales bot and &quot;Suggest reply&quot; know about your packages and prices. Upload the Sales Deck, check what the AI understood, and update it whenever a price changes.</p>
           </header>
 
           <div className="mb-4 flex gap-1 rounded-xl bg-[#e3edf7] p-1 text-[13px] font-bold" role="tablist">
-            {([['docs', 'Documents'], ['settings', 'Bot script & settings'], ['ask', 'Ask the AI']] as Array<[Tab, string]>).map(([k, label]) => (
+            {([['docs', 'Documents'], ['settings', 'Bot script & settings'], ['ask', 'Ask the AI'], ['history', 'History']] as Array<[Tab, string]>).map(([k, label]) => (
               <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`flex-1 rounded-lg px-3 py-2 transition ${tab === k ? 'bg-white text-brand-dark shadow-sm' : 'text-ink-soft hover:text-ink'}`}>{label}</button>
             ))}
           </div>
 
-          {notice && <p role="alert" className={`mb-4 flex items-start gap-2 rounded-xl px-4 py-2.5 text-[13px] ${notice.kind === 'error' ? 'bg-bad-soft text-bad' : 'bg-ok-soft text-ok'}`}><Icon d={I.alert} size={16} /><span>{notice.text}</span></p>}
+          {notice && <p role="alert" className={`mb-4 flex items-start gap-2 rounded-xl px-4 py-2.5 text-[13px] ${notice.kind === 'error' ? 'bg-bad-soft text-bad' : 'bg-ok-soft text-ok'}`}><Icon d={notice.kind === 'error' ? I.alert : I.check} size={16} /><span>{notice.text}</span></p>}
           {error && !data && (
             <div className="rounded-xl bg-white p-6 text-center text-[13px]"><p className="text-bad">{error}</p><button onClick={() => void load()} className={`${btnPrimary} mt-3`}>Try again</button></div>
           )}
@@ -151,7 +152,9 @@ export function BibleApp({ demo }: { demo: boolean }) {
                   </div>
                   <button className={btnPrimary} onClick={() => startUpload(null)}><Icon d={I.upload} />Upload PDF</button>
                 </div>
-              ) : <p className="mb-4 rounded-xl bg-white px-4 py-3 text-[12.5px] text-ink-soft">You can read the AI Bible and ask it questions. Only admins can upload or change documents.</p>}
+              ) : <p className="mb-4 rounded-xl bg-white px-4 py-3 text-[12.5px] text-ink-soft">You can read the AI Kamus and ask it questions. Only admins can upload or change documents.</p>}
+
+              <InUse active={active} />
 
               {stale.length > 0 && (
                 <p className="mb-4 flex items-start gap-2 rounded-xl bg-warn-soft px-4 py-2.5 text-[13px] text-[#7a4f06]"><Icon d={I.alert} size={16} /><span><b>Are these prices still right?</b> {stale.map((d) => `"${d.title}"`).join(', ')} {stale.length === 1 ? 'was' : 'were'} last updated {ageLabel(stale[0].text_updated_at)}. The AI keeps quoting what is written here until you update it.</span></p>
@@ -176,6 +179,7 @@ export function BibleApp({ demo }: { demo: boolean }) {
 
           {data && tab === 'settings' && <SettingsTab initial={data.settings} canEdit={canEdit} say={say} />}
           {data && tab === 'ask' && <AskTab />}
+          {data && tab === 'history' && <HistoryTab log={data.log ?? []} />}
         </div>
       </main>
 
@@ -197,7 +201,9 @@ function DocCard({ d, canEdit, onOpen, onToggle, onReplace, onDelete }: { d: Bib
             <h3 className="truncate text-[14.5px] font-extrabold">{d.title}</h3>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-soft">
               <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${st.cls}`}>{st.label}</span>
+              {d.active && d.status === 'ready' && <span className="rounded-full bg-brand px-2 py-0.5 text-[10.5px] font-bold text-white">In use now</span>}
               <span>Version {d.version}</span>
+              <span>Uploaded {dateTimeLabel(d.created_at)}{d.uploaded_by ? ` by ${d.uploaded_by}` : ''}</span>
               {d.file_size ? <span>{sizeLabel(d.file_size)}</span> : null}
               <span className={old ? 'font-bold text-warn' : ''}>Text updated {ageLabel(d.text_updated_at)}{d.text_updated_by ? ` by ${d.text_updated_by}` : ''}</span>
             </p>
@@ -249,9 +255,11 @@ function DocEditor({ doc, canEdit, onClose, onSaved }: { doc: BibleDocFull; canE
           {unreadable > 0 && <p className="mb-2 flex items-center gap-2 rounded-lg bg-warn-soft px-3 py-1.5 text-[12px] font-semibold text-[#7a4f06]"><Icon d={I.alert} size={14} />{unreadable} part{unreadable > 1 ? 's' : ''} of the deck could not be read. Search for &quot;TIDAK TERBACA&quot; and fill in what is missing.</p>}
           <textarea value={text} onChange={(e) => setText(e.target.value)} readOnly={!canEdit} aria-label="Text the AI reads" spellCheck={false} className={`${field} h-[52dvh] resize-none font-mono text-[12.5px] leading-relaxed`} />
         </div>
-        <footer className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
-          <p role="alert" className="text-[12px] text-bad">{err}</p>
-          {canEdit && <button onClick={save} disabled={busy || !changed || !title.trim()} className={btnPrimary}>{busy ? 'Saving...' : 'Save changes'}</button>}
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
+          <p role={err ? 'alert' : 'status'} className={`text-[12.5px] ${err ? 'text-bad' : changed ? 'font-bold text-warn' : 'text-ok'}`}>
+            {err || (!canEdit ? '' : changed ? 'You have changes that are not saved yet.' : '✓ Saved. This is the text the AI uses now. Change something here to enable "Save changes".')}
+          </p>
+          {canEdit && <button onClick={save} disabled={busy || !changed || !title.trim()} className={btnPrimary}>{busy ? 'Saving...' : changed ? 'Save changes' : 'Saved'}</button>}
         </footer>
       </div>
     </div>
@@ -335,6 +343,57 @@ function AskTab() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ which deck is in use now */
+function InUse({ active }: { active: BibleDoc[] }) {
+  const live = active.filter((d) => d.status === 'ready').sort((a, b) => b.text_updated_at.localeCompare(a.text_updated_at));
+  if (live.length === 0) {
+    return <p className="mb-4 flex items-start gap-2 rounded-xl bg-warn-soft px-4 py-2.5 text-[13px] text-[#7a4f06]"><Icon d={I.alert} size={16} /><span><b>No document is in use.</b> The AI only knows the bot script. Upload the Sales Deck, or switch a document on.</span></p>;
+  }
+  return (
+    <div className="mb-4 rounded-2xl border border-brand/30 bg-brand-soft px-4 py-3" aria-label="Documents in use now">
+      <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-brand-deep">The AI is using now</p>
+      <ul className="mt-1 space-y-0.5">
+        {live.map((d) => (
+          <li key={d.id} className="text-[13.5px]"><b>{d.title}</b> <span className="text-ink-soft">· version {d.version} · uploaded {dateTimeLabel(d.created_at)}{d.uploaded_by ? ` by ${d.uploaded_by}` : ''} · text updated {ageLabel(d.text_updated_at)}</span></li>
+        ))}
+      </ul>
+      {live.length > 1 && <p className="mt-1 text-[11.5px] text-ink-soft">More than one document is on. If their prices differ, the AI trusts the one whose text was updated most recently.</p>}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ history: every deck entered and every change */
+const VERB: Record<string, string> = {
+  uploaded: 'uploaded the deck', new_version: 'uploaded a new version of', edited: 'edited the text of', renamed: 'renamed', switched_on: 'switched on', switched_off: 'switched off',
+  deleted: 'deleted', settings: 'changed', upload_failed: 'tried to upload (it failed)',
+};
+const BADGE: Record<string, string> = {
+  uploaded: 'bg-ok-soft text-ok', new_version: 'bg-ok-soft text-ok', edited: 'bg-brand-soft text-brand-dark', renamed: 'bg-brand-soft text-brand-dark', switched_on: 'bg-ok-soft text-ok',
+  switched_off: 'bg-[#eef2f6] text-ink-soft', deleted: 'bg-bad-soft text-bad', settings: 'bg-brand-soft text-brand-dark', upload_failed: 'bg-bad-soft text-bad',
+};
+const BADGE_TEXT: Record<string, string> = { uploaded: 'Uploaded', new_version: 'New version', edited: 'Edited', renamed: 'Renamed', switched_on: 'Switched on', switched_off: 'Switched off', deleted: 'Deleted', settings: 'Settings', upload_failed: 'Failed' };
+
+function HistoryTab({ log }: { log: BibleLogEntry[] }) {
+  return (
+    <section aria-label="History">
+      <p className="mb-3 text-[13px] text-ink-soft">Every deck that was entered, and every change to what the AI knows: who did it and when. The newest is first.</p>
+      {log.length === 0 && <p className="rounded-2xl bg-white p-8 text-center text-[13.5px] text-ink-soft">Nothing has happened yet.</p>}
+      <ol className="space-y-2">
+        {log.map((e) => (
+          <li key={e.id} className="rounded-xl border border-line bg-white px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${BADGE[e.action] ?? 'bg-[#eef2f6] text-ink-soft'}`}>{BADGE_TEXT[e.action] ?? e.action}</span>
+              <p className="text-[13.5px]"><b>{e.by_name || 'Someone'}</b> {VERB[e.action] ?? e.action} <b>{e.doc_title}</b></p>
+            </div>
+            {e.detail && <p className="mt-1 text-[12.5px] text-ink-soft">{e.detail}</p>}
+            <p className="mt-1 text-[11.5px] text-ink-soft">{dateTimeLabel(e.created_at)} · {ageLabel(e.created_at)}</p>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

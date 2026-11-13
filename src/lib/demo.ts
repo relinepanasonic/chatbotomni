@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import type { Agent, BibleDocFull, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
+import type { Agent, BibleDocFull, BibleLogEntry, BotSettings, ChatStatus, ConversationSummary, ListResponse, Person, QuickReply, Thread, ThreadMessage } from './types';
 
 /** Made-up chats for previewing the design locally (DEMO=1, never in production). Nothing here touches the ERP or WhatsApp. */
 
@@ -124,7 +124,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   return json({ error: 'Not found.' }, 404);
 }
 
-// ---------------------------------------------------------------- AI Bible (demo)
+// ---------------------------------------------------------------- AI Kamus (demo)
 const DECK_TEXT = `TENTANG KAMI
 Prof Toko Online mengelola toko Shopee dan iklannya supaya penjualan naik. Laporan performa dikirim tiap minggu lewat WhatsApp.
 
@@ -150,15 +150,24 @@ const docs: BibleDocFull[] = [
 ];
 const settings: BotSettings = { enabled: true, persona_name: 'Fefe', company_name: 'Prof Toko Online', hours_from: '08:00', hours_to: '21:00', max_replies: 4, knowledge: 'TENTANG KAMI\nProf Toko Online membantu toko online supaya penjualannya naik.\nISI: alamat kantor dan jam kerja tim.' };
 
+const demoLog: BibleLogEntry[] = [
+  { id: 'l1', doc_id: 'b0', doc_title: 'Sales Deck September 2026', action: 'uploaded', by_name: 'Nico', detail: 'Sales-Deck-Sep.pdf (3030 KB), version 1', created_at: dayAgo(75) },
+  { id: 'l2', doc_id: 'b1', doc_title: 'Sales Deck Oktober 2026', action: 'new_version', by_name: 'Nico', detail: 'Sales-Deck-Okt.pdf (3320 KB), version 2. The previous version was switched off.', created_at: dayAgo(41) },
+  { id: 'l3', doc_id: 'b2', doc_title: 'Daftar harga Meta Ads', action: 'uploaded', by_name: 'Vani', detail: 'meta.pdf (781 KB), version 1', created_at: dayAgo(6) },
+  { id: 'l4', doc_id: 'b2', doc_title: 'Daftar harga Meta Ads', action: 'edited', by_name: 'Vani', detail: 'The text was changed by hand (96 to 120 characters).', created_at: dayAgo(2) },
+];
+const addLog = (doc: { id: string | null; title: string }, action: string, detail?: string) => demoLog.push({ id: `l${Date.now()}${demoLog.length}`, doc_id: doc.id, doc_title: doc.title, action, by_name: 'Demo', detail: detail ?? null, created_at: new Date().toISOString() });
+
 function bibleDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
   const slim = (d: BibleDocFull) => { const { text, ...rest } = d; void text; return rest; };
-  if (parts.length === 1) return json({ docs: [...docs].sort((x, y) => y.created_at.localeCompare(x.created_at)).map(slim), settings, canEdit: true });
+  if (parts.length === 1) return json({ docs: [...docs].sort((x, y) => y.created_at.localeCompare(x.created_at)).map(slim), log: [...demoLog].sort((x, y) => y.created_at.localeCompare(x.created_at)), settings, canEdit: true });
   if (parts[1] === 'upload-url') return json({ ok: true, path: `demo/${Date.now()}-${String(b?.fileName ?? 'deck.pdf')}`, token: 'demo', bucket: 'ai-bible' });
   if (parts[1] === 'ingest') {
     const old = b?.replaces ? docs.find((d) => d.id === b.replaces) : undefined;
     if (old) old.active = false;
     const doc: BibleDocFull = { id: `b${Date.now()}`, title: String(b?.title || 'Sales Deck'), kind: 'sales_deck', file_name: 'deck.pdf', file_size: 2_000_000, status: 'ready', error: null, active: true, version: old ? old.version + 1 : 1, replaces: old?.id ?? null, uploaded_by: 'Demo', created_at: new Date().toISOString(), text_updated_at: new Date().toISOString(), text_updated_by: 'Demo', chars: DECK_TEXT.length, text: DECK_TEXT };
     docs.push(doc);
+    addLog({ id: doc.id, title: doc.title }, old ? 'new_version' : 'uploaded', `deck.pdf (1953 KB), version ${doc.version}${old ? '. The previous version was switched off.' : ''}`);
     return json({ ok: true, doc });
   }
   if (parts[1] === 'ask') {
@@ -167,14 +176,16 @@ function bibleDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): 
     const live = docs.filter((d) => d.active).map((d) => d.text).join('\n').split('\n');
     const words = q.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !['berapa', 'harga', 'paket', 'apa', 'yang', 'untuk'].includes(w));
     const hits = live.filter((l) => words.some((w) => l.toLowerCase().includes(w)));
-    return json({ ok: true, answer: hits.length ? hits.slice(0, 3).join('\n') : 'Itu belum ada di AI Bible.', model: 'demo' });
+    return json({ ok: true, answer: hits.length ? hits.slice(0, 3).join('\n') : 'Itu belum ada di AI Kamus.', model: 'demo' });
   }
-  if (parts[1] === 'settings' && method === 'POST') { Object.assign(settings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
+  if (parts[1] === 'settings' && method === 'POST') { addLog({ id: null, title: 'Bot script and settings' }, 'settings', typeof b?.enabled === 'boolean' ? `The bot was switched ${b.enabled ? 'ON' : 'OFF'}.` : 'The script was saved.'); Object.assign(settings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
   const doc = docs.find((d) => d.id === parts[1]);
   if (!doc) return json({ error: 'Document not found.' }, 404);
   if (method === 'GET') return json(doc);
-  if (method === 'DELETE') { docs.splice(docs.indexOf(doc), 1); return json({ ok: true }); }
+  if (method === 'DELETE') { docs.splice(docs.indexOf(doc), 1); addLog({ id: null, title: doc.title }, 'deleted', 'The document and its file were deleted.'); return json({ ok: true }); }
   if (typeof b?.title === 'string' && b.title.trim()) doc.title = b.title.trim();
+  if (typeof b?.text === 'string' && b.text !== doc.text) addLog({ id: doc.id, title: doc.title }, 'edited', `The text was changed by hand (${doc.text.length} to ${b.text.length} characters).`);
+  if (typeof b?.active === 'boolean' && b.active !== doc.active) addLog({ id: doc.id, title: doc.title }, b.active ? 'switched_on' : 'switched_off');
   if (typeof b?.text === 'string') { doc.text = b.text; doc.chars = b.text.length; doc.text_updated_at = new Date().toISOString(); doc.text_updated_by = 'Demo'; }
   if (typeof b?.active === 'boolean') doc.active = b.active;
   return json({ ok: true });

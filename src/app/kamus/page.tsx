@@ -3,7 +3,7 @@ import { BibleApp } from '@/components/BibleApp';
 import { accessToken, isDemo } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'AI Bible' };
+export const metadata = { title: 'AI Kamus' };
 
 export default async function BiblePage() {
   const demo = isDemo();
