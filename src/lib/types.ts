@@ -1,6 +1,9 @@
 /** The shapes the ERP chat API returns (src/lib/chat/shape.ts in the ERP). */
 export type ChatStatus = 'bot' | 'human' | 'off' | 'new';
-export type ChatFilter = 'all' | 'mine' | 'unserved' | 'bot' | 'resolved';
+export type ChatFilter = 'all' | 'mine' | 'unserved' | 'bot' | 'resolved' | 'followup';
+export interface ChatLabel { id: string; name: string; color: string }
+export interface NextReminder { id: string; dueAt: string; note: string | null; state: 'overdue' | 'today' | 'later' }
+export interface ReminderItem { id: string; dueAt: string; note: string | null; assignedName: string | null; createdBy: string | null; doneAt: string | null; doneBy: string | null; state: 'overdue' | 'today' | 'later' }
 
 export interface ChatSource { label: string | null; channel: string; by: string | null }
 export interface Lead { name?: string; store?: string; need?: string }
@@ -13,12 +16,14 @@ export interface ConversationSummary {
   status: ChatStatus; lead: Lead | null; botReplies: number;
   assignedTo: Person | null; resolved: boolean;
   source: ChatSource | null;
+  labels?: ChatLabel[];
+  nextReminder?: NextReminder | null;
 }
-export interface Counts { all: number; mine: number; unserved: number; bot: number; human: number; resolved: number }
-export interface ListResponse { me?: { id: string; name: string; role: string }; conversations: ConversationSummary[]; counts: Counts }
+export interface Counts { all: number; mine: number; unserved: number; bot: number; human: number; resolved: number; followup?: number }
+export interface ListResponse { me?: { id: string; name: string; role: string }; conversations: ConversationSummary[]; counts: Counts; labels?: ChatLabel[] }
 
 export type Sender = 'lead' | 'bot' | 'team' | 'note';
-export interface ThreadMessage { id: string; sender: Sender; senderName: string | null; text: string; mediaType: string | null; at: string }
+export interface ThreadMessage { id: string; sender: Sender; senderName: string | null; text: string; mediaType: string | null; at: string; mediaUrl?: string | null }
 
 export interface Thread {
   id: string; phone: string; name: string;
@@ -28,7 +33,9 @@ export interface Thread {
   assignedTo: Person | null; resolved: boolean;
   source: ChatSource | null; sourceId: string | null; firstMessage: string | null;
   client: { id: string; name: string; sales: string | null; serviceEnd: string | null } | null;
-  deals: Array<{ id: string; title: string; stage: string; value: number; sales: string | null }>;
+  deals: Array<{ id: string; title: string; stage: string; value: number; sales: string | null; salesId?: string | null }>;
+  labels: ChatLabel[];
+  reminders: ReminderItem[];
 }
 
 export interface Agent { id: string; name: string; role: string }
