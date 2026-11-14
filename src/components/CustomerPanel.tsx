@@ -6,6 +6,8 @@ import { dateTimeLabel, timeLabel } from '@/lib/format';
 import { LABEL_CLASS } from './ChatExtras';
 import { ChannelMark } from './ChannelMark';
 import { CHANNEL_NAME, chatChannel } from '@/lib/channel';
+import { SlotPicker } from './SlotPicker';
+import { clockOf, dayKeyOf, dayTitle } from '@/lib/calendar';
 
 /**
  * The right-hand column of a chat, ordered by what a salesperson needs:
@@ -369,14 +371,11 @@ function MeetingForm({ groupId, onDone, onCancel }: { groupId: string; onDone: (
     <form onSubmit={book} className="space-y-2 rounded-xl border border-line bg-white p-3">
       {slots === null && !err && <p className="text-[12px] text-ink-soft">Finding free times...</p>}
       {slots?.length === 0 && <p className="text-[12px] text-ink-soft">No free time in the bookable hours. Change them in Jadwal, or check that booking is switched on.</p>}
-      {slots && slots.length > 0 && (
-        <label className="block text-[11.5px] font-semibold text-ink-soft">Free time
-          <select value={pick} onChange={(e) => setPick(e.target.value)} className={`${input} mt-1 py-1.5 text-[12.5px]`}><option value="">Pick a time</option>{slots.map((x) => <option key={x.code} value={x.code}>{x.label}</option>)}</select>
-        </label>
-      )}
+      {slots && slots.length > 0 && <SlotPicker codes={slots.map((x) => x.code)} value={pick} onChange={setPick} disabled={busy} />}
+      {pick && <p className="rounded-lg bg-brand-soft px-3 py-2 text-[12.5px] font-bold text-brand-dark">{dayTitle(dayKeyOf(pick))}, {clockOf(pick)} WIB</p>}
       <p className="text-[11px] text-ink-soft">The lead gets the time and the Google Meet link in this chat.</p>
       {err && <p role="alert" className="text-[12px] text-bad">{err}</p>}
-      <div className="flex gap-2"><button className={btnPrimary} disabled={busy || !pick}>{busy ? 'Booking...' : 'Book and send'}</button><button type="button" className={btnText} onClick={onCancel}>Cancel</button></div>
+      <div className="flex gap-2"><button className={btnPrimary} disabled={busy || !pick}>{busy ? 'Booking...' : pick ? `Book ${clockOf(pick)} and send` : 'Pick a time'}</button><button type="button" className={btnText} onClick={onCancel}>Cancel</button></div>
     </form>
   );
 }

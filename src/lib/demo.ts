@@ -403,10 +403,14 @@ function meetingOf(groupId: string) {
 }
 function demoSlots() {
   const out: Array<{ code: string; label: string }> = [];
-  for (let d = 1; d <= 5; d++) for (const h of ['10:00', '13:00', '15:30']) {
-    const code = atWib(d, h);
-    if (demoMeetings.some((m) => m.status === 'booked' && m.starts_at === code)) continue;
-    out.push({ code, label: `${new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(code))}, jam ${h.replace(':', '.')} WIB` });
+  for (let d = 1; d <= 24; d++) {
+    const wd = new Date(Date.now() + d * 86400000 + 7 * 3600000).getUTCDay();
+    if (wd === 0 || wd === 6) continue;
+    for (const h of ['09:00', '10:00', '11:00', '13:00', '14:00', '15:30']) {
+      const code = atWib(d, h);
+      if (demoMeetings.some((m) => m.status === 'booked' && m.starts_at === code)) continue;
+      out.push({ code, label: `${new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(code))}, jam ${h.replace(':', '.')} WIB` });
+    }
   }
   return out;
 }
