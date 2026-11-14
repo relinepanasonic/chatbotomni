@@ -378,13 +378,14 @@ function demoStats(days: number) {
     from: new Date(now - days * 86400000).toISOString(), to: new Date(now).toISOString(), days,
     overview: { newChats: sum('newChats'), leadMessages: sum('leadMessages'), replies: sum('replies'), medianReply: 3.2, medianBot: 0.4, medianPeople: 11.5, within5: 0.68, leads: Math.round(18 * scale), won: Math.round(6 * scale), wonValue: Math.round(22000000 * scale) },
     daily,
+    booking: { booked: Math.round(21 * scale), byBot: Math.round(15 * scale), byTeam: Math.round(6 * scale), byNudge: Math.round(4 * scale), held: Math.round(14 * scale), noShow: Math.round(4 * scale), showRate: 0.78, cancelled: Math.round(2 * scale), upcoming: 5, confirmedUpcoming: 3, chatToBooked: 0.22 },
     bot: { chatsAnswered: Math.round(96 * scale), replies: Math.round(210 * scale), handedOver: Math.round(41 * scale), stillWithBot: 12, reasons: [{ reason: 'A salesperson took over', count: Math.round(19 * scale) }, { reason: 'Price negotiation', count: Math.round(9 * scale) }, { reason: 'Bot message limit', count: Math.round(7 * scale) }, { reason: 'Asked for a person', count: Math.round(4 * scale) }, { reason: 'Payment', count: Math.round(2 * scale) }] },
     people: [
-      { name: 'Rani', chats: 34, replies: 128, medianMinutes: 4.5, leads: 9, won: 3, wonValue: 12000000 },
-      { name: 'Lucy', chats: 22, replies: 76, medianMinutes: 12, leads: 6, won: 2, wonValue: 7000000 },
-      { name: 'Vani', chats: 5, replies: 14, medianMinutes: 26, leads: 1, won: 1, wonValue: 3000000 },
+      { name: 'Rani', chats: 34, replies: 128, medianMinutes: 4.5, leads: 9, won: 3, wonValue: 12000000, meetingsHeld: 9 },
+      { name: 'Lucy', chats: 22, replies: 76, medianMinutes: 12, leads: 6, won: 2, wonValue: 7000000, meetingsHeld: 4 },
+      { name: 'Vani', chats: 5, replies: 14, medianMinutes: 26, leads: 1, won: 1, wonValue: 3000000, meetingsHeld: 1 },
     ],
-    funnel: [{ channel: 'meta_ads', chats: 58, leads: 12, won: 4, wonValue: 16000000 }, { channel: 'google_ads', chats: 24, leads: 5, won: 2, wonValue: 6000000 }, { channel: 'unknown', chats: 11, leads: 1, won: 0, wonValue: 0 }],
+    funnel: [{ channel: 'meta_ads', chats: 58, booked: 14, attended: 9, leads: 12, won: 4, wonValue: 16000000 }, { channel: 'google_ads', chats: 24, booked: 6, attended: 4, leads: 5, won: 2, wonValue: 6000000 }, { channel: 'unknown', chats: 11, booked: 1, attended: 1, leads: 1, won: 0, wonValue: 0 }],
     now: { waiting: 3, longestWaitMinutes: 19, overdueFollowups: 1 },
   };
 }

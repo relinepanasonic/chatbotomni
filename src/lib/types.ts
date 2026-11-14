@@ -83,12 +83,14 @@ export interface FlowFull { id: string; name: string; description: string | null
 export interface FlowRun { id: string; flow_id: string | null; flow_name: string; chat: string; trigger_text: string | null; actions: string[] | null; handled: boolean; outcome: string; detail: string | null; created_at: string }
 
 /** The numbers page (ERP src/lib/chat/stats.ts). Minutes are numbers; null when there is nothing to measure. */
-export interface StatsPerson { name: string; chats: number; replies: number; medianMinutes: number | null; leads: number; won: number; wonValue: number }
-export interface StatsFunnel { channel: string; chats: number; leads: number; won: number; wonValue: number }
+export interface StatsPerson { name: string; chats: number; replies: number; medianMinutes: number | null; leads: number; won: number; wonValue: number; meetingsHeld?: number }
+export interface StatsFunnel { channel: string; chats: number; booked?: number; attended?: number; leads: number; won: number; wonValue: number }
+export interface StatsBooking { booked: number; byBot: number; byTeam: number; byNudge: number; held: number; noShow: number; showRate: number | null; cancelled: number; upcoming: number; confirmedUpcoming: number; chatToBooked: number | null }
 export interface Stats {
   from: string; to: string; days: number;
   overview: { newChats: number; leadMessages: number; replies: number; medianReply: number | null; medianBot: number | null; medianPeople: number | null; within5: number | null; leads: number; won: number; wonValue: number };
   daily: Array<{ day: string; newChats: number; leadMessages: number; replies: number }>;
+  booking?: StatsBooking;
   bot: { chatsAnswered: number; replies: number; handedOver: number; stillWithBot: number; reasons: Array<{ reason: string; count: number }> };
   people: StatsPerson[];
   funnel: StatsFunnel[];

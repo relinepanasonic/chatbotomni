@@ -13,7 +13,7 @@ import { Rail } from './Rail';
 type Metric = 'newChats' | 'leadMessages' | 'replies';
 const METRICS: Array<{ key: Metric; label: string }> = [{ key: 'newChats', label: 'New chats' }, { key: 'leadMessages', label: 'Messages from leads' }, { key: 'replies', label: 'Our replies' }];
 // The funnel stages are ordered, so they are one hue stepping darker (sequential), not three different colours.
-const FUNNEL = [{ key: 'chats', label: 'Chats', color: '#a9d4f7' }, { key: 'leads', label: 'Became a lead', color: '#4ea9ef' }, { key: 'won', label: 'Won', color: '#1268b8' }] as const;
+const FUNNEL = [{ key: 'chats', label: 'Chats', color: '#cfe6fa' }, { key: 'booked', label: 'Booked a consultation', color: '#a9d4f7' }, { key: 'attended', label: 'Came', color: '#6fb8f0' }, { key: 'leads', label: 'Became a lead', color: '#2f9bf0' }, { key: 'won', label: 'Won', color: '#1268b8' }] as const;
 
 async function load(days: number): Promise<{ ok: true; data: Stats } | { ok: false; error: string }> {
   try {
@@ -64,6 +64,7 @@ export function StatistikApp({ demo }: { demo: boolean }) {
             <div className={`space-y-5 transition-opacity ${busy ? 'opacity-60' : ''}`}>
               <NowStrip s={s} />
               <Tiles s={s} />
+              {s.booking && <Consultations b={s.booking} />}
               <Daily s={s} />
               <div className="grid gap-5 lg:grid-cols-2">
                 <BotCard s={s} />
@@ -76,6 +77,39 @@ export function StatistikApp({ demo }: { demo: boolean }) {
         </div>
       </main>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ the goal: free consultations */
+function Consultations({ b }: { b: NonNullable<Stats['booking']> }) {
+  const tiles = [
+    { label: 'Consultations booked', value: String(b.booked), sub: b.chatToBooked === null ? 'No new chats yet' : `${Math.round(b.chatToBooked * 100)}% of new chats booked` },
+    { label: 'Came to the meeting', value: String(b.held), sub: b.noShow ? `${b.noShow} did not come` : 'Marked Done in Jadwal' },
+    { label: 'Show rate', value: pct(b.showRate), sub: b.showRate === null ? 'No meeting has passed yet' : `${b.held} of ${b.held + b.noShow} came` },
+    { label: 'Coming up', value: String(b.upcoming), sub: b.upcoming ? `${b.confirmedUpcoming} confirmed by the lead` : 'Nothing booked ahead' },
+  ];
+  const parts = [{ label: 'Booked by the bot', v: b.byBot }, { label: 'Booked by a salesperson', v: b.byTeam }];
+  return (
+    <section aria-label="Free consultations" className="rounded-2xl border border-line bg-white p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[15px] font-extrabold">Free consultations</h2>
+        <p className="text-[12px] text-ink-soft">The goal of every chat</p>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+        {tiles.map((t) => (
+          <div key={t.label} className="rounded-xl bg-brand-softer px-4 py-3">
+            <p className="text-[12.5px] font-semibold text-ink-soft">{t.label}</p>
+            <p className="mt-0.5 text-[24px] font-extrabold leading-tight">{t.value}</p>
+            <p className="mt-0.5 text-[12px] text-ink-soft">{t.sub}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[12.5px] text-ink-soft">
+        {parts.map((p, i) => <span key={p.label}>{i ? ', ' : ''}<b className="text-ink">{p.v}</b> {p.label.toLowerCase()}</span>)}
+        {b.byNudge ? <>, of which <b className="text-ink">{b.byNudge}</b> came from a follow-up message</> : null}
+        {b.cancelled ? <>. {b.cancelled} cancelled</> : null}.
+      </p>
+    </section>
   );
 }
 
@@ -224,11 +258,11 @@ function FunnelCard({ s }: { s: Stats }) {
             <li key={f.channel}>
               <div className="mb-1 flex items-baseline justify-between text-[12.5px]">
                 <span className="font-bold">{channelLabel(f.channel)}</span>
-                <span className="text-ink-soft">{f.chats} chats, {f.leads} lead{f.leads === 1 ? '' : 's'} ({f.chats ? Math.round((f.leads / f.chats) * 100) : 0}%), {f.won} won{f.won ? `, ${rpShort(f.wonValue)}` : ''}</span>
+                <span className="text-ink-soft">{f.chats} chats, {f.booked ?? 0} booked ({f.chats ? Math.round(((f.booked ?? 0) / f.chats) * 100) : 0}%), {f.attended ?? 0} came, {f.leads} lead{f.leads === 1 ? '' : 's'}, {f.won} won{f.won ? `, ${rpShort(f.wonValue)}` : ''}</span>
               </div>
               <div className="space-y-[2px]">
                 {FUNNEL.map((st) => {
-                  const v = f[st.key];
+                  const v = f[st.key] ?? 0;
                   return <div key={st.key} className="h-2.5 rounded-r-[4px]" style={{ width: v ? `max(${(v / max) * 100}%, 4px)` : 0, background: st.color }} title={`${channelLabel(f.channel)}: ${v} ${st.label.toLowerCase()}`} />;
                 })}
               </div>
@@ -252,7 +286,7 @@ function People({ s }: { s: Stats }) {
             <thead>
               <tr className="border-b border-line text-[12px] text-ink-soft">
                 <th className="py-2 font-semibold">Name</th><th className="py-2 text-right font-semibold">Chats handled</th><th className="py-2 text-right font-semibold">Replies</th>
-                <th className="py-2 text-right font-semibold">Median reply</th><th className="py-2 text-right font-semibold">Leads added</th><th className="py-2 text-right font-semibold">Won</th><th className="py-2 text-right font-semibold">Won value</th>
+                <th className="py-2 text-right font-semibold">Median reply</th><th className="py-2 text-right font-semibold">Consultations held</th><th className="py-2 text-right font-semibold">Leads added</th><th className="py-2 text-right font-semibold">Won</th><th className="py-2 text-right font-semibold">Won value</th>
               </tr>
             </thead>
             <tbody>
@@ -262,6 +296,7 @@ function People({ s }: { s: Stats }) {
                   <td className="py-2 text-right">{p.chats}</td>
                   <td className="py-2 text-right">{p.replies}</td>
                   <td className={`py-2 text-right font-bold ${fast(p.medianMinutes)}`}>{durLabel(p.medianMinutes)}</td>
+                  <td className="py-2 text-right">{p.meetingsHeld ?? 0}</td>
                   <td className="py-2 text-right">{p.leads}</td>
                   <td className="py-2 text-right">{p.won}</td>
                   <td className="py-2 text-right">{p.won ? rpShort(p.wonValue) : '-'}</td>
