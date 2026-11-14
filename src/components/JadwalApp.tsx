@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Agent, Meeting, MeetingsResponse, MeetSettings } from '@/lib/types';
+import type { Agent, Meeting, MeetingsResponse, MeetSettings, NudgeInfo } from '@/lib/types';
 import { Rail } from './Rail';
 import { clockWib, normalizeTime, timeChoices, toMinutes, weekPlan } from '@/lib/meet';
 
@@ -112,6 +112,7 @@ export function JadwalApp({ demo }: { demo: boolean }) {
                 )}
               </section>
               <SettingsCard initial={d.settings} meetings={d.meetings} canEdit={d.canEdit} say={setNotice} reload={load} />
+              {d.nudges && <FollowUpCard n={d.nudges} canEdit={d.canEdit} say={setNotice} reload={load} />}
               <GoogleCard d={d} say={setNotice} reload={load} />
             </div>
           )}
@@ -128,6 +129,64 @@ function Attendance({ m }: { m: Meeting }) {
     : m.confirm_sent_at ? ['Asked to confirm', 'bg-warn-soft text-warn', 'The confirmation went out an hour before; no answer yet.']
     : ['Booked', 'bg-brand-soft text-brand-dark', 'The lead is asked to confirm an hour before, and gets the link 15 minutes before.'];
   return <span title={title} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>;
+}
+
+/* ------------------------------------------------------------------ follow-ups: quiet leads who never booked get a nudge with three free times */
+const TIMINGS: Array<[string, string]> = [['24', 'After 1 day'], ['24,72', 'After 1 and 3 days'], ['24,72,168', 'After 1, 3 and 7 days']];
+
+function FollowUpCard({ n, canEdit, say, reload }: { n: NudgeInfo; canEdit: boolean; say: (x: { kind: 'ok' | 'error'; text: string }) => void; reload: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const current = n.hours.join(',');
+  const timing = TIMINGS.some(([v]) => v === current) ? current : TIMINGS[1][0];
+  const save = async (patch: { enabled?: boolean; hours?: number[] }, done: string) => {
+    setBusy(true);
+    const r = await api<{ ok: true }>('/meetings/nudges', { method: 'POST', body: JSON.stringify(patch) });
+    setBusy(false);
+    if (!r.ok) { say({ kind: 'error', text: r.error }); return; }
+    say({ kind: 'ok', text: done }); await reload();
+  };
+  return (
+    <section aria-label="Follow-ups" className="rounded-2xl border border-line bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 max-w-xl">
+          <h2 className="text-[15px] font-extrabold">Follow up leads who did not book</h2>
+          <p className="mt-0.5 text-[12.5px] text-ink-soft">When a WhatsApp lead goes quiet after our answer and has no consultation yet, they get a short message with three free times. Replying with a number books it.</p>
+        </div>
+        <label className={`flex items-center gap-2 text-[13px] font-bold ${canEdit ? 'cursor-pointer' : ''}`}>
+          <input type="checkbox" role="switch" className="h-4 w-4 accent-[var(--color-brand)]" checked={n.enabled} disabled={!canEdit || busy}
+            onChange={(e) => void save({ enabled: e.target.checked }, e.target.checked ? 'Follow-ups are on.' : 'Follow-ups are off.')} />
+          {n.enabled ? 'On' : 'Off'}
+        </label>
+      </div>
+      <div className="mt-4">
+        <Row title="When" hint="Counted from the lead's last message. If they write again, it starts over.">
+          <Choice label="When follow-ups go out" value={timing} options={TIMINGS} disabled={!canEdit || busy}
+            onChange={(v) => void save({ hours: v.split(',').map(Number) }, 'Follow-up times saved.')} />
+        </Row>
+        <Row title="Who is left out" hint="So nobody is pushed too hard.">
+          <ul className="list-disc space-y-0.5 pl-4 text-[12.5px] text-ink-soft">
+            <li>Leads who booked, or ever had a consultation</li>
+            <li>Chats handed over to the team, and anyone who replied STOP</li>
+            <li>Instagram and Facebook (Meta allows no message a day after the lead&apos;s last one)</li>
+            <li>Never more than 4 follow-ups to one lead, and only inside the broadcast hours</li>
+          </ul>
+        </Row>
+        <Row title="The message" hint="The first one. Later ones are shorter.">
+          <p className="whitespace-pre-line rounded-xl bg-brand-softer px-3.5 py-3 text-[12.5px] leading-relaxed text-ink">{`Hi kak Budi, kemarin sempat ngobrol soal toko online kakak ya. Biar lebih jelas langkahnya, tim ahli Prof Toko Online bisa bantu cek toko kakak lewat konsultasi gratis 30 menit (Google Meet).
+
+Waktu yang masih kosong:
+1. Senin 16 Nov, jam 10.00 WIB
+2. Senin 16 Nov, jam 14.00 WIB
+3. Selasa 17 Nov, jam 10.00 WIB
+
+Balas angkanya ya kak (1, 2 atau 3). Balas STOP kalau tidak mau dihubungi lagi.`}</p>
+        </Row>
+        <Row title="Last 30 days">
+          <p className="text-[13px]"><b>{n.chats30d}</b> {n.chats30d === 1 ? 'lead' : 'leads'} followed up, <b>{n.booked30d}</b> booked by replying with a number.</p>
+        </Row>
+      </div>
+    </section>
+  );
 }
 
 function GoogleCard({ d, say, reload }: { d: MeetingsResponse; say: (n: { kind: 'ok' | 'error'; text: string }) => void; reload: () => Promise<void> }) {
