@@ -103,7 +103,9 @@ export interface Meeting {
   confirm_sent_at?: string | null; confirmed_at?: string | null; reschedule_asked_at?: string | null; owner_name?: string | null;
 }
 export interface NudgeInfo { enabled: boolean; hours: number[]; chats30d: number; booked30d: number }
-export interface MeetingsResponse { meetings: Meeting[]; settings: MeetSettings; google: { configured: boolean; connected: boolean; email: string | null }; canEdit: boolean; nudges?: NudgeInfo | null }
+export interface MeetingsResponse { meetings: Meeting[]; settings: MeetSettings; google: { configured: boolean; connected: boolean; email: string | null }; canEdit: boolean; nudges?: NudgeInfo | null; after?: AfterInfo | null }
+export interface AfterInfo { thanks: boolean; noShow: boolean }
+export interface AfterResult { message: 'sent' | 'off' | 'failed' | 'none'; stage?: string | null; detail: string }
 export interface FreeSlot { code: string; label: string }
 
 // ---------------------------------------------------------------- broadcasts

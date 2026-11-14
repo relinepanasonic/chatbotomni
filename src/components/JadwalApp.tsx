@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Agent, Meeting, MeetingsResponse, MeetSettings, NudgeInfo } from '@/lib/types';
+import type { AfterInfo, AfterResult, Agent, Meeting, MeetingsResponse, MeetSettings, NudgeInfo } from '@/lib/types';
 import { Rail } from './Rail';
 import { clockWib, normalizeTime, timeChoices, toMinutes, weekPlan } from '@/lib/meet';
 
@@ -45,8 +45,11 @@ export function JadwalApp({ demo }: { demo: boolean }) {
 
   const setStatus = async (m: Meeting, status: Meeting['status']) => {
     if (status === 'cancelled' && !confirm(`Cancel the meeting with ${m.chat || m.lead_name || 'this lead'}? It is also removed from Google Calendar. The lead is not told automatically.`)) return;
-    const r = await api<{ ok: true }>(`/meetings/${encodeURIComponent(m.id)}`, { method: 'POST', body: JSON.stringify({ status }) });
-    if (!r.ok) setNotice({ kind: 'error', text: r.error }); else await load();
+    if (status === 'no_show' && d?.after?.noShow && !confirm(`Mark ${m.chat || m.lead_name || 'this lead'} as did not come? They get a message with 3 new times to book again.`)) return;
+    const r = await api<{ ok: true; after?: AfterResult | null }>(`/meetings/${encodeURIComponent(m.id)}`, { method: 'POST', body: JSON.stringify({ status }) });
+    if (!r.ok) { setNotice({ kind: 'error', text: r.error }); return; }
+    if (r.data.after) setNotice({ kind: r.data.after.message === 'failed' ? 'error' : 'ok', text: r.data.after.detail });
+    await load();
   };
 
   const groups = useMemo(() => {
@@ -97,8 +100,8 @@ export function JadwalApp({ demo }: { demo: boolean }) {
                                 {m.status === 'booked' && !past ? <Attendance m={m} /> : <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS[m.status].cls}`}>{STATUS[m.status].label}</span>}
                                 {m.status === 'booked' && (
                                   <span className="flex gap-1.5">
-                                    {past && <button className={btnGhost} onClick={() => void setStatus(m, 'done')}>Done</button>}
-                                    {past && <button className={btnGhost} onClick={() => void setStatus(m, 'no_show')}>Did not come</button>}
+                                    {past && <button className={btnGhost} title={d.after?.thanks ? 'The lead gets a thank-you, and the ERP lead moves to Negotiation.' : 'The ERP lead moves to Negotiation.'} onClick={() => void setStatus(m, 'done')}>Done</button>}
+                                    {past && <button className={btnGhost} title={d.after?.noShow ? 'The lead gets 3 new times to book again.' : undefined} onClick={() => void setStatus(m, 'no_show')}>Did not come</button>}
                                     {!past && <button className={`${btnGhost} hover:!border-bad hover:!text-bad`} onClick={() => void setStatus(m, 'cancelled')}>Cancel</button>}
                                   </span>
                                 )}
@@ -112,6 +115,7 @@ export function JadwalApp({ demo }: { demo: boolean }) {
                 )}
               </section>
               <SettingsCard initial={d.settings} meetings={d.meetings} canEdit={d.canEdit} say={setNotice} reload={load} />
+              {d.after && <AfterCard a={d.after} canEdit={d.canEdit} say={setNotice} reload={load} />}
               {d.nudges && <FollowUpCard n={d.nudges} canEdit={d.canEdit} say={setNotice} reload={load} />}
               <GoogleCard d={d} say={setNotice} reload={load} />
             </div>
@@ -129,6 +133,44 @@ function Attendance({ m }: { m: Meeting }) {
     : m.confirm_sent_at ? ['Asked to confirm', 'bg-warn-soft text-warn', 'The confirmation went out an hour before; no answer yet.']
     : ['Booked', 'bg-brand-soft text-brand-dark', 'The lead is asked to confirm an hour before, and gets the link 15 minutes before.'];
   return <span title={title} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>;
+}
+
+/* ------------------------------------------------------------------ after the meeting: what happens when the team marks it Done or Did not come */
+function AfterCard({ a, canEdit, say, reload }: { a: AfterInfo; canEdit: boolean; say: (x: { kind: 'ok' | 'error'; text: string }) => void; reload: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const save = async (patch: Partial<AfterInfo>, done: string) => {
+    setBusy(true);
+    const r = await api<{ ok: true }>('/meetings/after', { method: 'POST', body: JSON.stringify(patch) });
+    setBusy(false);
+    if (!r.ok) { say({ kind: 'error', text: r.error }); return; }
+    say({ kind: 'ok', text: done }); await reload();
+  };
+  const Switch = ({ on, label, onChange }: { on: boolean; label: string; onChange: (v: boolean) => void }) => (
+    <label className={`flex shrink-0 items-center gap-2 text-[13px] font-bold ${canEdit ? 'cursor-pointer' : ''}`}>
+      <input type="checkbox" role="switch" aria-label={label} className="h-4 w-4 accent-[var(--color-brand)]" checked={on} disabled={!canEdit || busy} onChange={(e) => onChange(e.target.checked)} />
+      {on ? 'On' : 'Off'}
+    </label>
+  );
+  return (
+    <section aria-label="After the meeting" className="rounded-2xl border border-line bg-white p-5">
+      <h2 className="text-[15px] font-extrabold">After the meeting</h2>
+      <p className="mt-0.5 text-[12.5px] text-ink-soft">When a consultation has passed, mark it <b>Done</b> or <b>Did not come</b> in the list above. This is what happens next.</p>
+      <div className="mt-4">
+        <Row title="Done" hint="The ERP lead always moves to Negotiation (made first if there is none).">
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-[12.5px] text-ink-soft">The lead gets a thank-you, and is told the salesperson sends the summary and recommendation.</p>
+            <Switch on={a.thanks} label="Thank-you message" onChange={(v) => void save({ thanks: v }, v ? 'The thank-you is on.' : 'The thank-you is off.')} />
+          </div>
+        </Row>
+        <Row title="Did not come" hint="No blame: maybe they were busy.">
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-[12.5px] text-ink-soft">The lead gets 3 new free times. Replying with a number books it, with a new Meet link.</p>
+            <Switch on={a.noShow} label="New times message" onChange={(v) => void save({ noShow: v }, v ? 'New times for no-shows are on.' : 'New times for no-shows are off.')} />
+          </div>
+        </Row>
+      </div>
+    </section>
+  );
 }
 
 /* ------------------------------------------------------------------ follow-ups: quiet leads who never booked get a nudge with three free times */

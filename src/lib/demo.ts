@@ -414,17 +414,22 @@ function demoSlots() {
   }
   return out;
 }
+const demoAfter = { thanks: true, noShow: true };
 const demoNudges = { enabled: true, hours: [24, 72], chats30d: 23, booked30d: 5 };
 function meetingsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
-  if (parts.length === 1) return json({ meetings: [...demoMeetings].sort((x, y) => x.starts_at.localeCompare(y.starts_at)), settings: meetSettings, google: { configured: true, connected: true, email: 'tim.proftoko@gmail.com' }, canEdit: true, nudges: demoNudges });
+  if (parts.length === 1) return json({ meetings: [...demoMeetings].sort((x, y) => x.starts_at.localeCompare(y.starts_at)), settings: meetSettings, google: { configured: true, connected: true, email: 'tim.proftoko@gmail.com' }, canEdit: true, nudges: demoNudges, after: demoAfter });
   if (parts[1] === 'settings') { Object.assign(meetSettings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
   if (parts[1] === 'slots') return json({ slots: demoSlots() });
+  if (parts[1] === 'after') { if (typeof b?.thanks === 'boolean') demoAfter.thanks = b.thanks; if (typeof b?.noShow === 'boolean') demoAfter.noShow = b.noShow; return json({ ok: true }); }
   if (parts[1] === 'nudges') { if (typeof b?.enabled === 'boolean') demoNudges.enabled = b.enabled; if (Array.isArray(b?.hours)) demoNudges.hours = b.hours.map(Number); return json({ ok: true }); }
   if (parts[1] === 'google') return method === 'DELETE' ? json({ ok: true }) : json({ ok: true, url: '/jadwal?google=connected' });
   const m = demoMeetings.find((x) => x.id === parts[1]);
   if (!m) return json({ error: 'Meeting not found.' }, 404);
+  const was = m.status;
   m.status = b?.status;
-  return json({ ok: true });
+  const after = was === 'booked' && m.status === 'done' ? { message: demoAfter.thanks ? 'sent' : 'off', stage: 'Negotiation', detail: `${demoAfter.thanks ? 'The lead got a thank-you. ' : ''}The ERP lead is in Negotiation.` }
+    : was === 'booked' && m.status === 'no_show' ? { message: demoAfter.noShow ? 'sent' : 'off', detail: demoAfter.noShow ? 'The lead got 3 new times to book again.' : 'Marked as did not come.' } : null;
+  return json({ ok: true, after });
 }
 
 // ---------------------------------------------------------------- broadcasts (demo)
