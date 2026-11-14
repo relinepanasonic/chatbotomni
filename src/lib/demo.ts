@@ -390,11 +390,11 @@ function demoStats(days: number) {
 }
 
 // ---------------------------------------------------------------- free consultations (demo)
-const meetSettings: MeetSettings = { enabled: true, days: [1, 2, 3, 4, 5], from: '10:00', to: '17:00', minutes: 30, noticeHours: 3, daysAhead: 7 };
+const meetSettings: MeetSettings = { enabled: true, days: [1, 2, 3, 4, 5], from: '10:00', to: '17:00', minutes: 30, noticeHours: 3, daysAhead: 7, ownerId: 'u-rani', ownerName: 'Rani' };
 const atWib = (daysFromNow: number, hhmm: string) => { const d = new Date(Date.now() + daysFromNow * 86400000 + 7 * 3600000); return new Date(`${d.toISOString().slice(0, 10)}T${hhmm}:00+07:00`).toISOString(); };
 const demoMeetings: Meeting[] = [
-  { id: 'm1', group_id: 'c1', lead_name: 'Budi', store: 'Kawat Nyamuk Jaya', starts_at: atWib(1, '10:00'), ends_at: atWib(1, '10:30'), status: 'booked', meet_url: 'https://meet.google.com/abc-defg-hij', booked_by: 'bot', note: null, created_at: new Date().toISOString(), chat: 'Budi Santoso' },
-  { id: 'm2', group_id: 'c7', lead_name: 'Rina', store: 'Rina Hijab Store', starts_at: atWib(2, '14:00'), ends_at: atWib(2, '14:30'), status: 'booked', meet_url: 'https://meet.google.com/xyz-uvwx-rst', booked_by: 'bot', note: null, created_at: new Date().toISOString(), chat: 'Rina Hijab Store' },
+  { id: 'm1', group_id: 'c1', lead_name: 'Budi', store: 'Kawat Nyamuk Jaya', starts_at: atWib(1, '10:00'), ends_at: atWib(1, '10:30'), status: 'booked', meet_url: 'https://meet.google.com/abc-defg-hij', booked_by: 'bot', note: null, created_at: new Date().toISOString(), chat: 'Budi Santoso', owner_name: 'Rani', confirm_sent_at: new Date().toISOString(), confirmed_at: new Date().toISOString() },
+  { id: 'm2', group_id: 'c7', lead_name: 'Rina', store: 'Rina Hijab Store', starts_at: atWib(2, '14:00'), ends_at: atWib(2, '14:30'), status: 'booked', meet_url: 'https://meet.google.com/xyz-uvwx-rst', booked_by: 'bot', note: null, created_at: new Date().toISOString(), chat: 'Rina Hijab Store', owner_name: 'Rani', confirm_sent_at: new Date().toISOString() },
   { id: 'm3', group_id: 'c5', lead_name: 'Hendra', store: 'HW Spareparts', starts_at: atWib(-1, '11:00'), ends_at: atWib(-1, '11:30'), status: 'booked', meet_url: null, booked_by: 'Rani', note: 'Google Calendar is not connected: send the lead a meeting link yourself.', created_at: new Date().toISOString(), chat: 'Hendra Wijaya' },
 ];
 function meetingOf(groupId: string) {
