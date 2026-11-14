@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Meeting, MeetingsResponse, MeetSettings } from '@/lib/types';
+import type { Agent, Meeting, MeetingsResponse, MeetSettings } from '@/lib/types';
 import { Rail } from './Rail';
 import { clockWib, normalizeTime, timeChoices, toMinutes, weekPlan } from '@/lib/meet';
 
@@ -88,12 +88,13 @@ export function JadwalApp({ demo }: { demo: boolean }) {
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate text-[13.5px] font-bold">{m.chat || m.lead_name || 'Lead'}{m.store && m.store !== (m.chat || m.lead_name) ? <span className="font-normal text-ink-soft">, {m.store}</span> : null}</span>
                                   <span className="flex flex-wrap items-center gap-x-2 text-[11.5px] text-ink-soft">
+                                    <span>{m.owner_name ? `With ${m.owner_name}` : 'No salesperson yet'}</span>
                                     <span>Booked by {m.booked_by === 'bot' ? 'the bot' : m.booked_by}</span>
                                     {m.meet_url ? <a href={m.meet_url} target="_blank" rel="noreferrer" className="font-bold text-brand-dark underline-offset-2 hover:underline">Open Meet</a> : <span className="text-warn">No Meet link</span>}
                                     {m.note && <span className="text-warn">{m.note}</span>}
                                   </span>
                                 </span>
-                                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS[m.status].cls}`}>{STATUS[m.status].label}</span>
+                                {m.status === 'booked' && !past ? <Attendance m={m} /> : <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS[m.status].cls}`}>{STATUS[m.status].label}</span>}
                                 {m.status === 'booked' && (
                                   <span className="flex gap-1.5">
                                     {past && <button className={btnGhost} onClick={() => void setStatus(m, 'done')}>Done</button>}
@@ -118,6 +119,15 @@ export function JadwalApp({ demo }: { demo: boolean }) {
       </main>
     </div>
   );
+}
+
+/** Where the lead stands for an upcoming meeting: confirmed, asked (no answer yet), wants another time, or not asked yet (asked an hour before). */
+function Attendance({ m }: { m: Meeting }) {
+  const [label, cls, title] = m.confirmed_at ? ['Confirmed', 'bg-ok-soft text-ok', 'The lead replied YA to the confirmation.']
+    : m.reschedule_asked_at ? ['Wants another time', 'bg-warn-soft text-warn', 'The lead asked to move it and got 3 other times to pick from.']
+    : m.confirm_sent_at ? ['Asked to confirm', 'bg-warn-soft text-warn', 'The confirmation went out an hour before; no answer yet.']
+    : ['Booked', 'bg-brand-soft text-brand-dark', 'The lead is asked to confirm an hour before, and gets the link 15 minutes before.'];
+  return <span title={title} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>;
 }
 
 function GoogleCard({ d, say, reload }: { d: MeetingsResponse; say: (n: { kind: 'ok' | 'error'; text: string }) => void; reload: () => Promise<void> }) {
@@ -181,6 +191,8 @@ function Row({ title, hint, children }: { title: string; hint?: string; children
 }
 
 function SettingsCard({ initial, meetings, canEdit, say, reload }: { initial: MeetSettings; meetings: Meeting[]; canEdit: boolean; say: (n: { kind: 'ok' | 'error'; text: string }) => void; reload: () => Promise<void> }) {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  useEffect(() => { void api<{ agents: Agent[] }>('/agents').then((r) => r.ok && setAgents(r.data.agents)); }, []);
   const clean = (x: MeetSettings): MeetSettings => ({ ...x, from: normalizeTime(x.from) ?? '10:00', to: normalizeTime(x.to) ?? '17:00' });
   const [saved, setSaved] = useState(() => clean(initial));
   const [s, setS] = useState(() => clean(initial));
@@ -210,7 +222,7 @@ function SettingsCard({ initial, meetings, canEdit, say, reload }: { initial: Me
     else setS((x) => ({ ...x, enabled: !on }));
   };
   const saveTimes = async () => {
-    const patch = { days: s.days, from: s.from, to: s.to, minutes: s.minutes, noticeHours: s.noticeHours, daysAhead: s.daysAhead };
+    const patch = { days: s.days, from: s.from, to: s.to, minutes: s.minutes, noticeHours: s.noticeHours, daysAhead: s.daysAhead, ownerId: s.ownerId ?? null, ownerName: s.ownerName ?? null };
     if (await save(patch, 'Saved. Leads are offered the new times within a minute.')) setSaved((x) => ({ ...x, ...patch }));
   };
   const withCurrent = (list: Array<[number, string]>, v: number, unit: string): Array<[number, string]> => (list.some(([x]) => x === v) ? list : [...list, [v, `${v} ${unit}`] as [number, string]].sort((a, b) => a[0] - b[0]));
@@ -231,6 +243,14 @@ function SettingsCard({ initial, meetings, canEdit, say, reload }: { initial: Me
       </div>
 
       <div className="px-5 py-5">
+        <Row title="Salesperson" hint="Takes a consultation when the chat has nobody assigned. It shows in their ERP Meetings and Today calendar.">
+          <select aria-label="Salesperson" disabled={lock} value={s.ownerId ?? ''} onChange={(e) => setS({ ...s, ownerId: e.target.value || null, ownerName: agents.find((a) => a.id === e.target.value)?.name ?? null })} className="w-full max-w-xs rounded-lg border border-line bg-brand-softer px-3 py-2 text-[13px] font-bold outline-none focus:border-brand">
+            <option value="">Nobody: the person who books it</option>
+            {s.ownerId && !agents.some((a) => a.id === s.ownerId) && <option value={s.ownerId}>{s.ownerName || 'Salesperson'}</option>}
+            {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          {!s.ownerId && <p className="mt-1.5 text-[11.5px] text-warn">Meetings the bot books in unassigned chats will not reach anyone in the ERP until you pick someone.</p>}
+        </Row>
         <Row title="Days" hint="When the team takes consultations.">
           <div className="flex flex-wrap items-center gap-1.5">
             {WEEK.map(([n, label]) => {

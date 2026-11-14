@@ -126,7 +126,7 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
             <div className="min-w-0 flex-1">
               <p className="text-[12.5px] font-extrabold text-ok">Free consultation booked</p>
               <p className="text-[12.5px] text-ink">{dateTimeLabel(thread.meeting.startsAt)} WIB</p>
-              <p className="text-[11px] text-ink-soft">Booked by {thread.meeting.bookedBy === 'bot' ? 'the bot' : thread.meeting.bookedBy}{thread.meeting.meetUrl ? '' : '. No Meet link yet: send one yourself.'}</p>
+              <p className="text-[11px] text-ink-soft">{thread.meeting.confirmed ? 'The lead confirmed (YA).' : thread.meeting.wantsOtherTime ? 'The lead asked for another time.' : thread.meeting.confirmAsked ? 'Asked to confirm, no answer yet.' : 'The lead is asked to confirm an hour before.'}{thread.meeting.owner ? ` With ${thread.meeting.owner}.` : ''}{thread.meeting.meetUrl ? '' : ' No Meet link yet: send one yourself.'}</p>
             </div>
             {thread.meeting.meetUrl && <a href={thread.meeting.meetUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg bg-white px-2 py-1 text-[11.5px] font-bold text-ok ring-1 ring-ok/30 hover:bg-ok-soft">Open Meet</a>}
           </div>

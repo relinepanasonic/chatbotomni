@@ -41,7 +41,7 @@ export interface Thread {
   /** A flow stopped in this chat: waiting for the lead's answer, or for a Wait box's time. */
   flowWaiting?: { flow: string; kind: 'answer' | 'wait'; field: string | null; until: string | null } | null;
   /** The lead's upcoming free consultation, if one is booked. */
-  meeting?: { id: string; startsAt: string; endsAt: string; meetUrl: string | null; bookedBy: string } | null;
+  meeting?: { id: string; startsAt: string; endsAt: string; meetUrl: string | null; bookedBy: string; confirmed?: boolean; confirmAsked?: boolean; wantsOtherTime?: boolean; owner?: string | null } | null;
 }
 
 export interface Agent { id: string; name: string; role: string }
@@ -96,10 +96,11 @@ export interface Stats {
 }
 
 // ---------------------------------------------------------------- free consultations
-export interface MeetSettings { enabled: boolean; days: number[]; from: string; to: string; minutes: number; noticeHours: number; daysAhead: number }
+export interface MeetSettings { enabled: boolean; days: number[]; from: string; to: string; minutes: number; noticeHours: number; daysAhead: number; ownerId?: string | null; ownerName?: string | null }
 export interface Meeting {
   id: string; group_id: string | null; lead_name: string | null; store: string | null; starts_at: string; ends_at: string;
   status: 'booked' | 'done' | 'no_show' | 'cancelled'; meet_url: string | null; booked_by: string; note: string | null; created_at: string; chat?: string;
+  confirm_sent_at?: string | null; confirmed_at?: string | null; reschedule_asked_at?: string | null; owner_name?: string | null;
 }
 export interface MeetingsResponse { meetings: Meeting[]; settings: MeetSettings; google: { configured: boolean; connected: boolean; email: string | null }; canEdit: boolean }
 export interface FreeSlot { code: string; label: string }

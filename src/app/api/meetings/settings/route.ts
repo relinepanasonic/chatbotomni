@@ -7,5 +7,5 @@ async function json(request: Request): Promise<any> { try { return await request
 
 export async function POST(request: Request) {
   const b = await json(request);
-  return erpProxy('/meetings/settings', { method: 'POST', body: { enabled: typeof b?.enabled === 'boolean' ? b.enabled : undefined, days: Array.isArray(b?.days) ? b.days.map(Number) : undefined, from: b?.from, to: b?.to, minutes: b?.minutes, noticeHours: b?.noticeHours, daysAhead: b?.daysAhead } });
+  return erpProxy('/meetings/settings', { method: 'POST', body: { enabled: typeof b?.enabled === 'boolean' ? b.enabled : undefined, days: Array.isArray(b?.days) ? b.days.map(Number) : undefined, from: b?.from, to: b?.to, minutes: b?.minutes, noticeHours: b?.noticeHours, daysAhead: b?.daysAhead, ownerId: b?.ownerId === null ? null : typeof b?.ownerId === 'string' ? b.ownerId : undefined, ownerName: typeof b?.ownerName === 'string' ? b.ownerName : undefined } });
 }
