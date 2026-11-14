@@ -301,6 +301,7 @@ function SettingsTab({ initial, canEdit, say }: { initial: BotSettings; canEdit:
           <input type="checkbox" checked={!!s.media_enabled} disabled={!canEdit || busy} onChange={async (e) => { const on = e.target.checked; setS({ ...s, media_enabled: on }); if (!(await save({ media_enabled: on }, on ? 'Photos are unlocked in the inbox.' : 'Photos are locked in the inbox.'))) setS((x) => ({ ...x, media_enabled: !on })); }} className="h-5 w-5 accent-[#2f9bf0]" />{s.media_enabled ? 'ON' : 'OFF'}
         </label>
       </div>
+      <DeckLink value={s.deck_url ?? ''} canEdit={canEdit} busy={busy} onSave={async (v) => { if (await save({ deck_url: v }, v ? 'The deck link is saved. The bot sends it when a lead asks for the deck.' : 'The deck link is removed.')) setS((x) => ({ ...x, deck_url: v })); }} />
       <div className="grid gap-3 rounded-2xl border border-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="text-[12px] font-semibold text-ink-soft">Name<input className={`${field} mt-1`} value={s.persona_name} disabled={!canEdit} onChange={(e) => setS({ ...s, persona_name: e.target.value })} /></label>
         <label className="text-[12px] font-semibold text-ink-soft">Company<input className={`${field} mt-1`} value={s.company_name} disabled={!canEdit} onChange={(e) => setS({ ...s, company_name: e.target.value })} /></label>
@@ -412,5 +413,25 @@ function HistoryTab({ log }: { log: BibleLogEntry[] }) {
         ))}
       </ol>
     </section>
+  );
+}
+
+/** The sales deck as a link: the regular Fonnte package cannot send files, so the bot sends this link when a lead asks for the deck. */
+function DeckLink({ value, canEdit, busy, onSave }: { value: string; canEdit: boolean; busy: boolean; onSave: (v: string) => Promise<void> }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const dirty = v.trim() !== value;
+  const bad = v.trim() !== '' && !/^https:\/\/\S+\.\S+/.test(v.trim());
+  return (
+    <div className="rounded-2xl border border-line bg-white p-4">
+      <h2 className="text-[14.5px] font-extrabold">Sales deck link</h2>
+      <p className="max-w-2xl text-[12.5px] text-ink-soft">When a lead asks for the deck, company profile or package details, the bot sends this link (files cannot be sent on the regular Fonnte package). In Google Drive, set sharing to <b>Anyone with the link: Viewer</b>, or leads will only see a sign-in page.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <input className="min-w-0 flex-1 rounded-lg border border-line bg-brand-softer px-3 py-2 text-[13px] outline-none focus:border-brand" value={v} disabled={!canEdit} placeholder="https://drive.google.com/..." aria-label="Sales deck link" onChange={(e) => setV(e.target.value)} />
+        {canEdit && <button type="button" disabled={busy || !dirty || bad} onClick={() => void onSave(v.trim())} className="rounded-lg bg-brand px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-40">Save link</button>}
+        {v.trim() && !bad && <a href={v.trim()} target="_blank" rel="noreferrer" className="rounded-lg border border-line px-3.5 py-2 text-[13px] font-bold text-ink-soft hover:border-brand hover:text-brand-dark">Open</a>}
+      </div>
+      {bad && <p className="mt-1.5 text-[11.5px] text-bad">Paste the full link, starting with https://</p>}
+    </div>
   );
 }
