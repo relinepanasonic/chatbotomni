@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Meeting, MeetingsResponse, MeetSettings } from '@/lib/types';
 import { Rail } from './Rail';
+import { clockWib, normalizeTime, timeChoices, toMinutes, weekPlan } from '@/lib/meet';
 
 /**
  * Jadwal: the free consultations with the expert team. The bot books them in the chat (and the team can, from the inbox); each goes on the shared
@@ -19,7 +20,6 @@ async function api<T>(path: string, init?: RequestInit): Promise<{ ok: true; dat
 const TZ = 'Asia/Jakarta';
 const dayOf = (iso: string) => new Intl.DateTimeFormat('id-ID', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(iso));
 const clock = (iso: string) => new Intl.DateTimeFormat('id-ID', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso)).replace('.', ':');
-const DAYS = [[1, 'Sen'], [2, 'Sel'], [3, 'Rab'], [4, 'Kam'], [5, 'Jum'], [6, 'Sab'], [0, 'Min']] as const;
 const STATUS: Record<Meeting['status'], { label: string; cls: string }> = {
   booked: { label: 'Booked', cls: 'bg-brand-soft text-brand-dark' }, done: { label: 'Done', cls: 'bg-ok-soft text-ok' },
   no_show: { label: 'Did not come', cls: 'bg-warn-soft text-warn' }, cancelled: { label: 'Cancelled', cls: 'bg-[#eef2f6] text-ink-soft' },
@@ -110,8 +110,8 @@ export function JadwalApp({ demo }: { demo: boolean }) {
                   </div>
                 )}
               </section>
+              <SettingsCard initial={d.settings} meetings={d.meetings} canEdit={d.canEdit} say={setNotice} reload={load} />
               <GoogleCard d={d} say={setNotice} reload={load} />
-              <SettingsCard initial={d.settings} canEdit={d.canEdit} say={setNotice} reload={load} />
             </div>
           )}
         </div>
@@ -150,9 +150,51 @@ function GoogleCard({ d, say, reload }: { d: MeetingsResponse; say: (n: { kind: 
   );
 }
 
-function SettingsCard({ initial, canEdit, say, reload }: { initial: MeetSettings; canEdit: boolean; say: (n: { kind: 'ok' | 'error'; text: string }) => void; reload: () => Promise<void> }) {
-  const [s, setS] = useState(initial);
+
+/* ------------------------------------------------------------------ bookable times: plain choices, and a live week board of what leads can book */
+const WEEK = [[1, 'Sen'], [2, 'Sel'], [3, 'Rab'], [4, 'Kam'], [5, 'Jum'], [6, 'Sab'], [0, 'Min']] as const;
+const PRESETS: Array<{ label: string; days: number[] }> = [{ label: 'Weekdays', days: [1, 2, 3, 4, 5] }, { label: 'Mon to Sat', days: [1, 2, 3, 4, 5, 6] }, { label: 'Every day', days: [0, 1, 2, 3, 4, 5, 6] }];
+const LENGTHS = [15, 30, 45, 60, 90];
+const NOTICE: Array<[number, string]> = [[0, 'Right away'], [1, '1 hour'], [3, '3 hours'], [24, 'Next day']];
+const AHEAD: Array<[number, string]> = [[3, '3 days'], [7, '1 week'], [14, '2 weeks'], [30, '1 month']];
+const HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const sameSet = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x));
+
+function Choice<T extends string | number>({ value, options, onChange, disabled, label }: { value: T; options: Array<[T, string]>; onChange: (v: T) => void; disabled: boolean; label: string }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
+      {options.map(([v, text]) => (
+        <button key={String(v)} type="button" role="radio" aria-checked={value === v} disabled={disabled} onClick={() => onChange(v)}
+          className={`rounded-lg px-3 py-1.5 text-[12.5px] font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${value === v ? 'bg-brand text-white' : 'border border-line bg-white text-ink-soft hover:border-brand hover:text-brand-dark'}`}>{text}</button>
+      ))}
+    </div>
+  );
+}
+
+function Row({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-2 border-t border-line py-4 first:border-t-0 first:pt-0 sm:grid-cols-[11rem_1fr] sm:gap-6">
+      <div><p className="text-[13px] font-bold">{title}</p>{hint && <p className="mt-0.5 text-[11.5px] leading-snug text-ink-soft">{hint}</p>}</div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function SettingsCard({ initial, meetings, canEdit, say, reload }: { initial: MeetSettings; meetings: Meeting[]; canEdit: boolean; say: (n: { kind: 'ok' | 'error'; text: string }) => void; reload: () => Promise<void> }) {
+  const clean = (x: MeetSettings): MeetSettings => ({ ...x, from: normalizeTime(x.from) ?? '10:00', to: normalizeTime(x.to) ?? '17:00' });
+  const [saved, setSaved] = useState(() => clean(initial));
+  const [s, setS] = useState(() => clean(initial));
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
+
+  const dirty = JSON.stringify({ ...s, enabled: undefined }) !== JSON.stringify({ ...saved, enabled: undefined });
+  const problem = !s.days.length ? 'Pick at least one day.' : toMinutes(s.to) <= toMinutes(s.from) ? 'The end time must be after the start time.' : toMinutes(s.to) - toMinutes(s.from) < s.minutes ? `The hours are shorter than one ${s.minutes}-minute meeting.` : null;
+
+  const booked = useMemo(() => meetings.filter((m) => m.status === 'booked').map((m) => ({ start: new Date(m.starts_at), end: new Date(m.ends_at), who: m.chat || m.lead_name || 'Lead' })), [meetings]);
+  const plan = useMemo(() => (problem ? [] : weekPlan(s, now, booked, 7)), [s, now, booked, problem]);
+  const open = plan.reduce((n, d) => n + d.slots.length, 0);
+
   const save = async (patch: Partial<MeetSettings>, ok: string) => {
     setBusy(true);
     const r = await api<{ ok: true }>('/meetings/settings', { method: 'POST', body: JSON.stringify(patch) });
@@ -161,37 +203,107 @@ function SettingsCard({ initial, canEdit, say, reload }: { initial: MeetSettings
     if (r.ok) await reload();
     return r.ok;
   };
+  const toggle = async () => {
+    const on = !s.enabled;
+    setS({ ...s, enabled: on });
+    if (await save({ enabled: on }, on ? 'The bot now invites leads to book a free consultation.' : 'The bot stopped inviting leads. Booked meetings stay.')) setSaved((x) => ({ ...x, enabled: on }));
+    else setS((x) => ({ ...x, enabled: !on }));
+  };
+  const saveTimes = async () => {
+    const patch = { days: s.days, from: s.from, to: s.to, minutes: s.minutes, noticeHours: s.noticeHours, daysAhead: s.daysAhead };
+    if (await save(patch, 'Saved. Leads are offered the new times within a minute.')) setSaved((x) => ({ ...x, ...patch }));
+  };
+  const withCurrent = (list: Array<[number, string]>, v: number, unit: string): Array<[number, string]> => (list.some(([x]) => x === v) ? list : [...list, [v, `${v} ${unit}`] as [number, string]].sort((a, b) => a[0] - b[0]));
+  const lock = !canEdit || busy;
+
   return (
-    <section aria-label="Booking settings" className="rounded-2xl border border-line bg-white p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[15px] font-extrabold">Bookable times</h2>
-          <p className="mt-0.5 text-[12.5px] text-ink-soft">The bot only offers times inside these hours that are free on the calendar.</p>
+    <section aria-label="Bookable times" className="rounded-2xl border border-line bg-white">
+      {/* the switch, first: what it does is the most important thing on the card */}
+      <div className={`flex flex-wrap items-center gap-4 rounded-t-2xl px-5 py-4 ${s.enabled ? 'bg-ok-soft' : 'bg-[#f3f6f9]'}`}>
+        <button type="button" role="switch" aria-checked={s.enabled} aria-label="Bot invites leads to book" disabled={lock} onClick={() => void toggle()}
+          className={`relative h-7 w-12 shrink-0 rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60 ${s.enabled ? 'bg-ok' : 'bg-[#c4d0dc]'}`}>
+          <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${s.enabled ? 'left-[22px]' : 'left-0.5'}`} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[15px] font-extrabold">{s.enabled ? 'The bot invites leads to book' : 'The bot does not invite leads yet'}</h2>
+          <p className="text-[12.5px] text-ink-soft">{s.enabled ? 'In every chat it offers 2 or 3 of the free times below, and books the one the lead picks.' : 'Switch on to let the bot offer a free consultation in every chat. The team can still book from the inbox.'}</p>
         </div>
-        <label className={`flex items-center gap-2 text-[13px] font-bold ${canEdit ? 'cursor-pointer' : 'opacity-60'}`}>
-          <input type="checkbox" checked={s.enabled} disabled={!canEdit || busy} onChange={async (e) => { const on = e.target.checked; setS({ ...s, enabled: on }); if (!(await save({ enabled: on }, on ? 'Booking is ON: the bot now invites leads to a free consultation.' : 'Booking is OFF.'))) setS((x) => ({ ...x, enabled: !on })); }} className="h-5 w-5 accent-[#2f9bf0]" />
-          {s.enabled ? 'Bot invites leads' : 'Off'}
-        </label>
       </div>
-      <fieldset className="mt-4">
-        <legend className="text-[12px] font-semibold text-ink-soft">Days</legend>
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {DAYS.map(([n, label]) => {
-            const on = s.days.includes(n);
-            return <button key={n} type="button" disabled={!canEdit} aria-pressed={on} onClick={() => setS({ ...s, days: on ? s.days.filter((x) => x !== n) : [...s.days, n] })} className={`rounded-lg px-3 py-1.5 text-[12.5px] font-bold transition ${on ? 'bg-brand text-white' : 'border border-line text-ink-soft hover:border-brand'}`}>{label}</button>;
-          })}
+
+      <div className="px-5 py-5">
+        <Row title="Days" hint="When the team takes consultations.">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {WEEK.map(([n, label]) => {
+              const on = s.days.includes(n);
+              return <button key={n} type="button" disabled={lock} aria-pressed={on} onClick={() => setS({ ...s, days: on ? s.days.filter((x) => x !== n) : [...s.days, n] })}
+                className={`h-9 w-11 rounded-lg text-[12.5px] font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${on ? 'bg-brand text-white' : 'border border-line bg-white text-ink-soft hover:border-brand'}`}>{label}</button>;
+            })}
+            <span className="mx-1 hidden h-5 w-px bg-line sm:block" aria-hidden="true" />
+            {PRESETS.map((p) => <button key={p.label} type="button" disabled={lock} onClick={() => setS({ ...s, days: p.days })} className={`rounded-lg px-2 py-1 text-[12px] font-semibold underline-offset-2 transition ${sameSet(s.days, p.days) ? 'text-brand-dark underline' : 'text-ink-soft hover:text-brand-dark hover:underline'}`}>{p.label}</button>)}
+          </div>
+        </Row>
+        <Row title="Hours" hint="Jakarta time (WIB).">
+          <div className="flex flex-wrap items-center gap-2 text-[13px]">
+            <select aria-label="Start time" disabled={lock} value={s.from} onChange={(e) => setS({ ...s, from: e.target.value })} className="rounded-lg border border-line bg-brand-softer px-3 py-2 font-bold outline-none focus:border-brand">{timeChoices(s.from).map((t) => <option key={t} value={t}>{t}</option>)}</select>
+            <span className="text-ink-soft">until</span>
+            <select aria-label="End time" disabled={lock} value={s.to} onChange={(e) => setS({ ...s, to: e.target.value })} className="rounded-lg border border-line bg-brand-softer px-3 py-2 font-bold outline-none focus:border-brand">{timeChoices(s.to).map((t) => <option key={t} value={t}>{t}</option>)}</select>
+          </div>
+        </Row>
+        <Row title="Each meeting lasts">
+          <Choice label="Meeting length" disabled={lock} value={s.minutes} onChange={(v) => setS({ ...s, minutes: v })} options={withCurrent(LENGTHS.map((m) => [m, `${m} min`]), s.minutes, 'min')} />
+        </Row>
+        <Row title="Earliest booking" hint="How soon after the chat a lead can book.">
+          <Choice label="Earliest booking" disabled={lock} value={s.noticeHours} onChange={(v) => setS({ ...s, noticeHours: v })} options={withCurrent(NOTICE, s.noticeHours, 'hours')} />
+        </Row>
+        <Row title="Offer times up to" hint="How far ahead leads can book.">
+          <Choice label="Offer times up to" disabled={lock} value={s.daysAhead} onChange={(v) => setS({ ...s, daysAhead: v })} options={withCurrent(AHEAD, s.daysAhead, 'days')} />
+        </Row>
+      </div>
+
+      {/* what leads can book, live: every change above shows here before it is saved */}
+      <div className="border-t border-line bg-brand-softer px-5 py-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-[14px] font-extrabold">What leads can book in the next 7 days</h3>
+          {!problem && <p className="text-[12.5px] text-ink-soft"><b className="text-ink">{open}</b> free time{open === 1 ? '' : 's'}{booked.length ? `, ${booked.filter((b) => b.end > now).length} booked` : ''}</p>}
         </div>
-      </fieldset>
-      <div className="mt-3 grid gap-3 sm:grid-cols-5">
-        <label className="text-[12px] font-semibold text-ink-soft">From<input className={`${field} mt-1`} value={s.from} disabled={!canEdit} onChange={(e) => setS({ ...s, from: e.target.value })} placeholder="10:00" /></label>
-        <label className="text-[12px] font-semibold text-ink-soft">Until<input className={`${field} mt-1`} value={s.to} disabled={!canEdit} onChange={(e) => setS({ ...s, to: e.target.value })} placeholder="17:00" /></label>
-        <label className="text-[12px] font-semibold text-ink-soft">Meeting length
-          <select className={`${field} mt-1`} value={s.minutes} disabled={!canEdit} onChange={(e) => setS({ ...s, minutes: Number(e.target.value) })}>{[15, 30, 45, 60, 90].map((m) => <option key={m} value={m}>{m} minutes</option>)}</select>
-        </label>
-        <label className="text-[12px] font-semibold text-ink-soft">Earliest (hours from now)<input type="number" min={0} max={72} className={`${field} mt-1`} value={s.noticeHours} disabled={!canEdit} onChange={(e) => setS({ ...s, noticeHours: Number(e.target.value) })} /></label>
-        <label className="text-[12px] font-semibold text-ink-soft">Offer days ahead<input type="number" min={1} max={30} className={`${field} mt-1`} value={s.daysAhead} disabled={!canEdit} onChange={(e) => setS({ ...s, daysAhead: Number(e.target.value) })} /></label>
+        {problem ? <p role="alert" className="mt-3 rounded-lg bg-bad-soft px-3 py-2 text-[12.5px] text-bad">{problem}</p> : (
+          <div className="-mx-1 mt-3 overflow-x-auto pb-1">
+            <ol className="grid min-w-[640px] grid-cols-7 gap-2 px-1">
+              {plan.map((d) => {
+                const dayBooked = booked.filter((b) => b.start.getTime() >= d.date.getTime() && b.start.getTime() < d.date.getTime() + 86400000);
+                const items = [...d.slots.map((t) => ({ t, who: null as string | null })), ...dayBooked.map((b) => ({ t: b.start, who: b.who }))].sort((a, b) => a.t.getTime() - b.t.getTime());
+                // booked meetings are always shown; free times fill the rest of the column
+                const freeRoom = Math.max(0, 8 - dayBooked.length);
+                const shown = [...dayBooked.map((b) => ({ t: b.start, who: b.who as string | null })), ...d.slots.slice(0, freeRoom).map((t) => ({ t, who: null as string | null }))].sort((a, b) => a.t.getTime() - b.t.getTime());
+                const today = d.key === plan[0].key;
+                return (
+                  <li key={d.key} className={`flex min-h-36 flex-col rounded-xl border p-2 ${d.open ? 'border-line bg-white' : 'border-transparent bg-[#eaf0f6]'}`}>
+                    <p className={`text-[11.5px] font-bold ${today ? 'text-brand-dark' : 'text-ink-soft'}`}>{today ? 'Today' : HARI[d.weekday]}</p>
+                    <p className="text-[17px] font-extrabold leading-tight">{new Date(d.date.getTime() + 7 * 3600000).getUTCDate()}</p>
+                    <div className="mt-2 flex flex-1 flex-col gap-1">
+                      {!d.open && <p className="text-[11px] text-ink-soft">Closed</p>}
+                      {d.open && items.length === 0 && <p className="text-[11px] leading-snug text-ink-soft">{today ? 'Too soon for today' : 'No free time'}</p>}
+                      {shown.map((x) => x.who
+                        ? <span key={x.t.toISOString()} title={`Booked: ${x.who}`} className="truncate rounded-md bg-ok px-1.5 py-1 text-[11px] font-bold text-white">{clockWib(x.t)} {x.who.split(/\s+/)[0]}</span>
+                        : <span key={x.t.toISOString()} className="rounded-md border border-brand/40 bg-white px-1.5 py-1 text-center text-[11.5px] font-bold text-brand-dark">{clockWib(x.t)}</span>)}
+                      {items.length > shown.length && <span className="text-center text-[11px] font-semibold text-ink-soft">+{items.length - shown.length} more</span>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
+        <p className="mt-3 text-[11.5px] text-ink-soft">Times that are busy on your Google Calendar are also left out when the bot offers them; they are not shown here.</p>
       </div>
-      {canEdit && <button className={`${btnPrimary} mt-4`} disabled={busy} onClick={() => void save({ days: s.days, from: s.from, to: s.to, minutes: s.minutes, noticeHours: s.noticeHours, daysAhead: s.daysAhead }, 'Saved. The bot offers the new times within a minute.')}>{busy ? 'Saving...' : 'Save times'}</button>}
+
+      {canEdit && (
+        <div className="flex flex-wrap items-center justify-end gap-3 rounded-b-2xl border-t border-line px-5 py-3">
+          <span className={`text-[12.5px] ${dirty ? 'font-semibold text-warn' : 'text-ink-soft'}`}>{dirty ? 'You have changes that are not saved' : 'All changes saved'}</span>
+          {dirty && <button type="button" className={btnGhost} disabled={busy} onClick={() => setS({ ...saved, enabled: s.enabled })}>Undo changes</button>}
+          <button type="button" className={btnPrimary} disabled={busy || !dirty || !!problem} onClick={() => void saveTimes()}>{busy ? 'Saving...' : 'Save times'}</button>
+        </div>
+      )}
     </section>
   );
 }
