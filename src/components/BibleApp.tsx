@@ -301,6 +301,7 @@ function SettingsTab({ initial, canEdit, say }: { initial: BotSettings; canEdit:
           <input type="checkbox" checked={!!s.media_enabled} disabled={!canEdit || busy} onChange={async (e) => { const on = e.target.checked; setS({ ...s, media_enabled: on }); if (!(await save({ media_enabled: on }, on ? 'Photos are unlocked in the inbox.' : 'Photos are locked in the inbox.'))) setS((x) => ({ ...x, media_enabled: !on })); }} className="h-5 w-5 accent-[#2f9bf0]" />{s.media_enabled ? 'ON' : 'OFF'}
         </label>
       </div>
+      <PipelineAuto s={s} canEdit={canEdit} busy={busy} onSave={async (patch) => { if (await save(patch, 'Pipeline automation saved.')) setS((x) => ({ ...x, ...patch })); }} />
       <DeckLink value={s.deck_url ?? ''} canEdit={canEdit} busy={busy} onSave={async (v) => { if (await save({ deck_url: v }, v ? 'The deck link is saved. The bot sends it when a lead asks for the deck.' : 'The deck link is removed.')) setS((x) => ({ ...x, deck_url: v })); }} />
       <div className="grid gap-3 rounded-2xl border border-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="text-[12px] font-semibold text-ink-soft">Name<input className={`${field} mt-1`} value={s.persona_name} disabled={!canEdit} onChange={(e) => setS({ ...s, persona_name: e.target.value })} /></label>
@@ -432,6 +433,41 @@ function DeckLink({ value, canEdit, busy, onSave }: { value: string; canEdit: bo
         {v.trim() && !bad && <a href={v.trim()} target="_blank" rel="noreferrer" className="rounded-lg border border-line px-3.5 py-2 text-[13px] font-bold text-ink-soft hover:border-brand hover:text-brand-dark">Open</a>}
       </div>
       {bad && <p className="mt-1.5 text-[11.5px] text-bad">Paste the full link, starting with https://</p>}
+    </div>
+  );
+}
+
+/** The AI puts leads in the ERP pipeline: the switch, and the trigger words that move a lead. */
+function PipelineAuto({ s, canEdit, busy, onSave }: { s: BotSettings; canEdit: boolean; busy: boolean; onSave: (patch: Partial<BotSettings>) => Promise<void> }) {
+  const [w, setW] = useState(s.stage_words ?? { warm: '', negotiation: '', lost: '' });
+  useEffect(() => setW(s.stage_words ?? { warm: '', negotiation: '', lost: '' }), [s.stage_words]);
+  const dirty = JSON.stringify(w) !== JSON.stringify(s.stage_words ?? { warm: '', negotiation: '', lost: '' });
+  const groups = [
+    { key: 'warm', stage: 'Warm', hint: 'The lead asks about price, packages or the deck.' },
+    { key: 'negotiation', stage: 'Negotiation', hint: 'The lead is ready to buy or asks to negotiate.' },
+    { key: 'lost', stage: 'Lost', hint: 'The lead says no or not now.' },
+  ] as const;
+  return (
+    <div className="rounded-2xl border border-line bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <h2 className="text-[14.5px] font-extrabold">Put leads in the pipeline automatically</h2>
+          <p className="text-[12.5px] text-ink-soft">The bot adds a lead to the ERP pipeline once it knows the name or the store, then moves it forward from what the chat shows: a reply (Contacted), name and store (Qualified), the words below (Warm, Negotiation, Lost), free times sent (Meeting Offered). A booking and a finished meeting move it too. It never moves a lead back, and never touches a deal that is with Accounting. Every move leaves a note in the chat.</p>
+          {!s.stage_auto ? null : <p className="mt-1 text-[12px] text-ink-soft">New leads belong to the chat&apos;s salesperson, or the one chosen in Jadwal. Without either, no lead is made.</p>}
+        </div>
+        <label className={`flex items-center gap-2 text-[13px] font-bold ${canEdit ? 'cursor-pointer' : 'opacity-60'}`}>
+          <input type="checkbox" role="switch" aria-label="Pipeline automation" className="h-5 w-5 accent-[#2f9bf0]" checked={!!s.stage_auto} disabled={!canEdit || busy} onChange={(e) => void onSave({ stage_auto: e.target.checked })} />{s.stage_auto ? 'ON' : 'OFF'}
+        </label>
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-3">
+        {groups.map((g) => (
+          <label key={g.key} className="block text-[12px] font-semibold text-ink-soft">{g.stage} words
+            <textarea className="mt-1 h-28 w-full resize-y rounded-lg border border-line bg-brand-softer px-3 py-2 text-[12.5px] font-normal leading-relaxed text-ink outline-none focus:border-brand" value={w[g.key]} disabled={!canEdit} spellCheck={false} onChange={(e) => setW({ ...w, [g.key]: e.target.value })} />
+            <span className="mt-0.5 block text-[11.5px] font-normal">{g.hint} Separate with commas.</span>
+          </label>
+        ))}
+      </div>
+      {canEdit && <button type="button" disabled={busy || !dirty} onClick={() => void onSave({ stage_words: w })} className="mt-3 rounded-lg bg-brand px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-40">Save words</button>}
     </div>
   );
 }
