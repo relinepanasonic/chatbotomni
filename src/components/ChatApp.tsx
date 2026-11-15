@@ -157,6 +157,8 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const lastCount = useRef(0);
   const seen = useRef<Set<string> | null>(null);
   const alertsRef = useRef(false);
+  // a card of the pipeline board opens its chat: /?chat=<id>
+  useEffect(() => { try { const id = new URLSearchParams(window.location.search).get('chat'); if (id && /^[0-9a-f-]{36}$/i.test(id)) setSelected(id); } catch { /* no address bar */ } }, []);
   const selectedRef = useRef<string | null>(null);
   selectedRef.current = selected; alertsRef.current = alertsOn;
 

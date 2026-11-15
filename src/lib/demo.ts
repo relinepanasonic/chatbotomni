@@ -112,10 +112,25 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     LABELS.push({ id: `lb${Date.now()}`, name, color: String(b?.color || 'blue') });
     return json({ ok: true });
   }
+  if (parts[0] === 'pipeline') {
+    const rows = chats.flatMap((c) => (c.deals || []).map((d) => ({ c, d })));
+    const mk = (id: string, client: string, title: string, stage: string, value: number, sales: string, days: number, gid: string | null, extra: object = {}) => ({ id, title, client, stage, value, sales, salesId: `u-${sales.toLowerCase()}`, groupId: gid, daysInStage: days, payment: null, nextMeetingAt: null, ...extra });
+    const deals = [
+      ...rows.map(({ c, d }) => mk(d.id, c.name, d.title, d.stage, d.value, d.sales || 'Rani', 2, c.id)),
+      mk('p2', 'Kawat Nyamuk Jaya', 'Konsultasi gratis', 'Meeting Booked', 0, 'Rani', 1, 'c1', { nextMeetingAt: atWib(1, '10:00') }),
+      mk('p3', 'Dian', 'Lead dari chat', 'Lead', 0, 'Lucy', 0, 'c4'),
+      mk('p4', 'Toko Hijab Rina', 'Lead dari chat', 'Warm', 0, 'Lucy', 5, null),
+      mk('p5', 'Sari Fashion', 'Paket Optimize', 'Invoice', 3000000, 'Rani', 3, 'c2', { payment: 'unpaid' }),
+      mk('p6', 'Toko Bangunan Maju', 'Paket Juragan', 'Deal', 8000000, 'Lucy', 6, null, { payment: 'paid' }),
+      mk('p7', 'Warung Kopi', 'Lead dari chat', 'Cold Case', 0, 'Lucy', 9, null),
+    ];
+    return json({ deals: deals.map((x) => (boardStage[x.id] ? { ...x, stage: boardStage[x.id], daysInStage: 0 } : x)), stages: ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal', 'Cold Case'], me: { ...ME, role: 'sales' } });
+  }
   if (parts[0] === 'deals' && parts[2] === 'stage') {
+    if (/^p\d/.test(parts[1])) { boardStage[parts[1]] = String(b?.stage); return json({ ok: true }); }
     for (const c of chats) for (const d of c.deals || []) if (d.id === parts[1]) {
       if (d.stage === 'Invoice' || d.stage === 'Deal') return json({ error: 'An invoiced deal cannot move back.' }, 400);
-      d.stage = String(b?.stage); return json({ ok: true });
+      d.stage = String(b?.stage); boardStage[d.id] = d.stage; return json({ ok: true });
     }
     return json({ error: 'Deal not found.' }, 404);
   }
@@ -393,6 +408,8 @@ function demoStats(days: number) {
 
 // ---------------------------------------------------------------- free consultations (demo)
 const meetSettings: MeetSettings = { enabled: true, days: [1, 2, 3, 4, 5], from: '10:00', to: '17:00', minutes: 30, noticeHours: 3, daysAhead: 7, ownerId: 'u-rani', ownerName: 'Rani' };
+// kept on globalThis: in development each API route gets its own copy of this file
+const boardStage: Record<string, string> = ((globalThis as any).__demoBoardStage ??= {});
 const atWib = (daysFromNow: number, hhmm: string) => { const d = new Date(Date.now() + daysFromNow * 86400000 + 7 * 3600000); return new Date(`${d.toISOString().slice(0, 10)}T${hhmm}:00+07:00`).toISOString(); };
 const demoMeetings: Meeting[] = [
   { id: 'm1', group_id: 'c1', lead_name: 'Budi', store: 'Kawat Nyamuk Jaya', starts_at: atWib(1, '10:00'), ends_at: atWib(1, '10:30'), status: 'booked', meet_url: 'https://meet.google.com/abc-defg-hij', booked_by: 'bot', note: null, created_at: new Date().toISOString(), chat: 'Budi Santoso', owner_name: 'Rani', confirm_sent_at: new Date().toISOString(), confirmed_at: new Date().toISOString() },
