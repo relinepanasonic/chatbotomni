@@ -7,7 +7,7 @@ import { useMe } from '@/lib/useMe';
 /**
  * The navigation, the same order everywhere:
  *   Dashboard, Chat, Jadwal, Pipeline, Broadcast, Sumber Leads, Setting (AI Kamus, and Skenario for the BOD only).
- * Wide screens: a white sidebar with labels. Tablets and small laptops: a narrow rail with short labels. Phones: a bottom bar with the four pages
+ * Laptops and tablets: the narrow light blue bar with icons only; the name of an icon shows when the mouse is on it. Phones: a bottom bar with the four pages
  * used every day and "Lainnya" for the rest.
  */
 export type RailPage = 'statistik' | 'inbox' | 'jadwal' | 'pipeline' | 'broadcast' | 'sumber' | 'kamus' | 'skenario';
@@ -49,41 +49,37 @@ const PHONE_BAR: RailPage[] = ['statistik', 'inbox', 'jadwal', 'pipeline'];
 export function Rail({ active }: { active: RailPage }) {
   const me = useMe();
   const settings = SETTINGS.filter((s) => !s.bod || me?.isBod);
-  const [open, setOpen] = useState(isSetting(active));
   const [sheet, setSheet] = useState(false);
   useEffect(() => { if (!sheet) return; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setSheet(false); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [sheet]);
   const moreActive = !PHONE_BAR.includes(active);
 
   return (
     <>
-      {/* ---------------------------------------------------------------- tablets and laptops: a rail; wide screens: a sidebar with labels */}
-      <nav aria-label="Main" className="hidden shrink-0 flex-col border-r border-line bg-white md:flex md:w-[76px] xl:w-[224px]">
-        <div className="flex items-center gap-2.5 px-4 pb-4 pt-5 md:justify-center xl:justify-start">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0" />
-          <span className="hidden text-[14px] font-extrabold leading-tight text-ink xl:block">Prof Toko Online<span className="block text-[11.5px] font-semibold text-ink-soft">Sales chat</span></span>
-        </div>
-        <ul className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2.5">
+      {/* ---------------------------------------------------------------- tablets and laptops: a narrow light blue bar with icons; the name shows when the mouse is on the icon */}
+      <nav aria-label="Main" className="hidden w-[68px] shrink-0 flex-col items-center gap-2 bg-gradient-to-b from-[#4aaaf5] to-[#2380d8] py-4 md:flex">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Prof Toko Online" width={46} height={46} className="mb-3 h-[46px] w-[46px] drop-shadow-[0_2px_4px_rgba(10,60,120,0.35)]" />
+        <ul className="flex flex-col items-center gap-2">
           {MAIN.map((it) => <NavLink key={it.page} it={it} on={it.page === active} />)}
-          <li className="mt-1">
-            {/* Setting: a group on wide screens; on the rail it opens AI Kamus, where the Setting tabs are */}
-            <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
-              className={`hidden w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-semibold transition xl:flex ${isSetting(active) ? 'text-brand-dark' : 'text-ink-soft hover:bg-brand-softer hover:text-ink'}`}>
-              <Svg d={ICON.setting} /><span className="flex-1 text-left">Setting</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+          <li className="group relative">
+            {/* Setting: AI Kamus, and Skenario for the BOD. The two names open beside the icon on hover, on focus and on touch. */}
+            <button type="button" aria-haspopup="menu" aria-label="Setting" aria-current={isSetting(active) ? 'page' : undefined}
+              className={`flex h-11 w-11 items-center justify-center rounded-xl transition focus-visible:outline-2 focus-visible:outline-white ${isSetting(active) ? 'bg-white/25 text-white' : 'text-white/80 hover:bg-white/15 hover:text-white'}`}>
+              <Svg d={ICON.setting} size={22} />
             </button>
-            {open && (
-              <ul className="hidden flex-col gap-0.5 pl-4 xl:flex">
-                {settings.map((it) => <NavLink key={it.page} it={it} on={it.page === active} small />)}
-              </ul>
-            )}
-            <Link href="/kamus" aria-current={isSetting(active) ? 'page' : undefined} title="Setting"
-              className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10.5px] font-semibold xl:hidden ${isSetting(active) ? 'bg-brand-soft text-brand-dark' : 'text-ink-soft hover:bg-brand-softer hover:text-ink'}`}>
-              <Svg d={ICON.setting} /><span>Setting</span>
-            </Link>
+            <div role="menu" className="invisible absolute left-full top-0 z-50 pl-3 opacity-0 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+              <div className="min-w-[150px] rounded-xl bg-[#0b2a4a] p-1.5 shadow-xl">
+                <p className="px-2.5 pb-1 pt-1 text-[11px] font-bold text-white/60">Setting</p>
+                {settings.map((it) => (
+                  <Link key={it.page} href={it.href} role="menuitem" aria-current={it.page === active ? 'page' : undefined}
+                    className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold ${it.page === active ? 'bg-white/20 text-white' : 'text-white/90 hover:bg-white/15'}`}>
+                    <Svg d={it.icon} size={18} />{it.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           </li>
         </ul>
-        {me && <p className="hidden truncate border-t border-line px-4 py-3 text-[12px] text-ink-soft xl:block" title={me.role}>{me.name}</p>}
       </nav>
 
       {/* ---------------------------------------------------------------- phones: a bottom bar */}
@@ -122,15 +118,14 @@ export function Rail({ active }: { active: RailPage }) {
   );
 }
 
-function NavLink({ it, on, small }: { it: Item; on: boolean; small?: boolean }) {
+function NavLink({ it, on }: { it: Item; on: boolean }) {
   return (
-    <li>
-      <Link href={it.href} aria-current={on ? 'page' : undefined} title={it.label}
-        className={`relative flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10.5px] font-semibold transition xl:flex-row xl:gap-3 xl:px-3 xl:py-2.5 xl:text-[13.5px] ${small ? 'xl:py-2' : ''} ${on ? 'bg-brand-soft text-brand-dark' : 'text-ink-soft hover:bg-brand-softer hover:text-ink'}`}>
-        {on && <span className="absolute left-0 top-2 hidden h-[calc(100%-1rem)] w-[3px] rounded-r bg-brand xl:block" aria-hidden="true" />}
-        <Svg d={it.icon} size={small ? 18 : 20} />
-        <span className="xl:hidden">{it.short}</span><span className="hidden xl:inline">{it.label}</span>
+    <li className="group relative">
+      <Link href={it.href} aria-current={on ? 'page' : undefined} aria-label={it.label}
+        className={`flex h-11 w-11 items-center justify-center rounded-xl transition focus-visible:outline-2 focus-visible:outline-white ${on ? 'bg-white/25 text-white' : 'text-white/80 hover:bg-white/15 hover:text-white'}`}>
+        <Svg d={it.icon} size={22} />
       </Link>
+      <span role="tooltip" className="pointer-events-none invisible absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#0b2a4a] px-2.5 py-1.5 text-[12.5px] font-semibold text-white opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">{it.label}</span>
     </li>
   );
 }
