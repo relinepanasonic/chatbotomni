@@ -410,12 +410,26 @@ function Asks({ days }: { days: number }) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="text-[14px] font-extrabold">Summary for the BOD</h3>
-                <p className="text-[12px] text-ink-soft">Written by the AI from the numbers above only. It is kept for 6 hours.</p>
+                <p className="text-[12px] text-ink-soft">The same summary goes into page 5 of the daily BOD report (Insight Chat). It is kept for 6 hours.</p>
               </div>
               <button onClick={() => void write(!!sum)} disabled={writing || !d.messages} className="rounded-lg bg-brand px-3.5 py-2 text-[13px] font-bold text-white hover:bg-brand-dark disabled:opacity-40">{writing ? 'Writing...' : sum ? 'Write it again' : 'Write the summary'}</button>
             </div>
             {sumErr && <p className="mt-2 text-[12.5px] text-bad">{sumErr}</p>}
-            {sum && <p className="mt-3 whitespace-pre-line rounded-xl bg-brand-softer px-4 py-3 text-[13px] leading-relaxed">{sum.text}</p>}
+            {sum && (
+              <div className="mt-3 space-y-3 rounded-xl bg-brand-softer px-4 py-3 text-[13px] leading-relaxed">
+                <p>{sum.executive}</p>
+                {sum.insights.length > 0 && <ul className="list-disc space-y-1 pl-5">{sum.insights.map((x, i) => <li key={i}>{x}</li>)}</ul>}
+                {sum.actions.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-[12px] font-extrabold text-ink-soft">Recommendations and action plan</p>
+                    <ol className="space-y-1.5">
+                      {sum.actions.map((a, i) => <li key={i} className="flex gap-2"><span className="font-bold text-ink-soft">{i + 1}.</span><span><b>{a.pic}:</b> {a.action} <span className="text-ink-soft">({a.why})</span></span></li>)}
+                    </ol>
+                  </div>
+                )}
+                <p className="text-[11.5px] text-ink-soft">{sum.ai ? `Written by the AI (${sum.model}) from the numbers above.` : 'Written from the numbers alone: the AI was not available.'}</p>
+              </div>
+            )}
             {!sum && !sumErr && !d.messages && <p className="mt-2 text-[12.5px] text-ink-soft">There are no chats in this period yet.</p>}
           </section>
         </>
