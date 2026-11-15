@@ -25,3 +25,8 @@ export const PAYMENT_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid', paid: '
 export const PAYMENT_CHIP = { unpaid: 'bg-warn-soft text-warn', partial: 'bg-warn-soft text-warn', paid: 'bg-ok-soft text-ok', overdue: 'bg-bad-soft text-bad' } as const;
 /** Every stage a chat can be filtered by, in pipeline order, Lost last. */
 export const FILTER_STAGES = [...PIPELINE, LOST] as const;
+
+/** After this many days in a stage with no move a card shows as waiting too long (the same limits as the BOD report). */
+export const STUCK_DAYS: Record<string, number> = { Lead: 5, Contacted: 5, Qualified: 5, Warm: 4, 'Meeting Offered': 3, 'Meeting Done': 3, Negotiation: 7, 'Invoice Requested': 2 };
+/** Where a card may be dropped by hand: the hand stages and Lost. */
+export const DROP_OK = new Set<string>([...MANUAL, LOST]);

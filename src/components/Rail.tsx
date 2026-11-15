@@ -2,10 +2,11 @@ import React from 'react';
 import Link from 'next/link';
 
 /** The left sidebar: the app's own pages only (nothing leads back to the ERP). */
-export type RailPage = 'inbox' | 'kamus' | 'sumber' | 'skenario' | 'statistik' | 'jadwal' | 'broadcast';
+export type RailPage = 'inbox' | 'pipeline' | 'kamus' | 'sumber' | 'skenario' | 'statistik' | 'jadwal' | 'broadcast';
 
 const PATHS = {
   inbox: 'M3 13l2.5-7.5A2 2 0 017.4 4h9.2a2 2 0 011.9 1.5L21 13m-18 0v5a2 2 0 002 2h14a2 2 0 002-2v-5m-18 0h5l1 2h6l1-2h5',
+  pipeline: 'M4 4h4v16H4V4zm6 0h4v10h-4V4zm6 0h4v6h-4V4z',
   kamus: 'M4 5a2 2 0 012-2h12v16H6a2 2 0 00-2 2V5zm0 14a2 2 0 002 2h12M9 7h6M9 11h6',
   sumber: 'M3 3v18h18M7 15l4-4 3 3 5-6',
   skenario: 'M5 4h5v5H5V4zm9 11h5v5h-5v-5zM10 6.5h2.5A2.5 2.5 0 0115 9v6',
@@ -20,6 +21,7 @@ const Svg = ({ d, size = 22 }: { d: string; size?: number }) => (
 
 const ITEMS: Array<{ page: RailPage; href: string; label: string; icon: string }> = [
   { page: 'inbox', href: '/', label: 'Inbox', icon: PATHS.inbox },
+  { page: 'pipeline', href: '/pipeline', label: 'Pipeline', icon: PATHS.pipeline },
   { page: 'kamus', href: '/kamus', label: 'AI Kamus', icon: PATHS.kamus },
   { page: 'sumber', href: '/sumber', label: 'Sumber Lead', icon: PATHS.sumber },
   { page: 'skenario', href: '/skenario', label: 'Skenario', icon: PATHS.skenario },
