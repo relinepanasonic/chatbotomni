@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { BoardDeal, BoardResponse } from '@/lib/types';
 import { DROP_OK, FILTER_STAGES, LOCKED, LOST, PAYMENT_CHIP, PAYMENT_LABEL, STAGE_CHIP, STAGE_HINT, STUCK_DAYS, stageLabel, stageTone } from '@/lib/pipeline';
 import { rpShort } from '@/lib/format';
+import { PageHeader } from './PageHeader';
 import { Rail } from './Rail';
 
 /**
@@ -30,6 +31,7 @@ export function PipelineApp({ demo }: { demo: boolean }) {
   const [q, setQ] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  const [phoneStage, setPhoneStage] = useState('Lead');      // on a phone one stage is shown at a time
 
   const run = useCallback(async () => {
     const r = await load();
@@ -58,26 +60,30 @@ export function PipelineApp({ demo }: { demo: boolean }) {
   const byId = (id: string | null) => data?.deals.find((d) => d.id === id) ?? null;
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
       <Rail active="pipeline" />
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-end justify-between gap-3 px-4 pb-3 pt-5 sm:px-6">
-          <div>
-            <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">Pipeline {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
-            <p className="mt-1 text-[13.5px] text-ink-soft">The same deals as the ERP. Drag a card to move it; the chat opens when you click it.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a client" aria-label="Search a client" className="w-44 rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-brand" />
-            <select value={who} onChange={(e) => setWho(e.target.value)} aria-label="Filter by salesperson" className="rounded-lg border border-line bg-white px-2.5 py-2 text-[13px] font-semibold text-ink-soft outline-none focus:border-brand">
-              <option value="">All salespeople</option>{people.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-        </header>
+        <div className="px-4 pt-6 sm:px-6"><PageHeader title="Pipeline" demo={demo} description="The same deals as the ERP. Drag a card to move it, or click it to open the chat.">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a client" aria-label="Search a client" className="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-brand sm:w-44" />
+          <select value={who} onChange={(e) => setWho(e.target.value)} aria-label="Filter by salesperson" className="rounded-lg border border-line bg-white px-2.5 py-2 text-[13px] font-semibold text-ink-soft outline-none focus:border-brand">
+            <option value="">All salespeople</option>{people.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </PageHeader></div>
 
         {notice && <div role="status" className="mx-4 mb-2 flex items-start justify-between gap-3 rounded-xl bg-warn-soft px-4 py-2 text-[12.5px] font-semibold text-warn sm:mx-6"><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Dismiss" className="font-bold">×</button></div>}
         {error && !data && <div className="m-6 rounded-xl bg-white p-6 text-center text-[13px]"><p className="text-bad">{error}</p><button onClick={() => void run()} className="mt-3 rounded-lg bg-brand px-4 py-2 text-[13px] font-bold text-white hover:bg-brand-dark">Try again</button></div>}
         {!data && !error && <p className="p-6 text-center text-[13px] text-ink-soft">Loading the pipeline...</p>}
 
+        {data && (
+          <div className="-mt-1 mb-3 overflow-x-auto px-4 md:hidden" role="tablist" aria-label="Stage">
+            <div className="flex min-w-max gap-1.5">
+              {columns.map((st) => {
+                const n = shown.filter((d) => d.stage === st).length;
+                return <button key={st} type="button" role="tab" aria-selected={phoneStage === st} onClick={() => setPhoneStage(st)} className={`rounded-full px-3 py-1.5 text-[12.5px] font-bold ${phoneStage === st ? 'bg-brand text-white' : 'border border-line bg-white text-ink-soft'}`}>{stageLabel(st)} {n > 0 ? n : ''}</button>;
+              })}
+            </div>
+          </div>
+        )}
         {data && (
           <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-4 sm:px-6" aria-label="Pipeline board">
             {columns.map((stage) => {
@@ -88,7 +94,7 @@ export function PipelineApp({ demo }: { demo: boolean }) {
                 <section key={stage} aria-label={stageLabel(stage)}
                   onDragOver={(e) => { if (dragId) { e.preventDefault(); setOver(stage); } }} onDragLeave={() => setOver((o) => (o === stage ? null : o))}
                   onDrop={(e) => { e.preventDefault(); const d = byId(dragId); setDragId(null); setOver(null); if (d) void move(d, stage); }}
-                  className={`flex w-[264px] shrink-0 flex-col rounded-2xl border bg-[#eef4fb] transition ${over === stage ? (ok ? 'border-brand ring-2 ring-brand/30' : 'border-bad/50') : 'border-line'}`}>
+                  className={`${stage === phoneStage ? 'flex' : 'max-md:hidden md:flex'} w-full shrink-0 flex-col rounded-2xl border bg-[#eef4fb] transition md:w-[264px] ${over === stage ? (ok ? 'border-brand ring-2 ring-brand/30' : 'border-bad/50') : 'border-line'}`}>
                   <div className="px-3 pb-2 pt-3">
                     <div className="flex items-center justify-between gap-2">
                       <h2 className="flex items-center gap-1.5 text-[13.5px] font-extrabold"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STAGE_CHIP[stageTone(stage)]}`}>{stageLabel(stage)}</span></h2>

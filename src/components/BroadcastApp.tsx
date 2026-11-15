@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import type { BcSettings, BroadcastItem, BroadcastsResponse } from '@/lib/types';
 import { preview, splitVariants } from '@/lib/broadcast';
+import { PageHeader } from './PageHeader';
 import { Rail } from './Rail';
 
 /**
@@ -42,14 +43,11 @@ export function BroadcastApp({ demo }: { demo: boolean }) {
   const active = d?.broadcasts.find((b) => b.status === 'running' || b.status === 'paused');
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
       <Rail active="broadcast" />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-          <header className="mb-5">
-            <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">Broadcast {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
-            <p className="mt-1 text-[13.5px] text-ink-soft">One push, sent slowly: messages go out one by one with a random pause, only during sending hours, and never more than the daily maximum, so WhatsApp does not block the sales number. WhatsApp only.</p>
-          </header>
+          <PageHeader title="Broadcast" demo={demo} description="Send one message to past WhatsApp leads, slowly and safely: one by one, only in sending hours, never more than the daily maximum." />
           {notice && <p role="alert" className={`mb-4 rounded-xl px-4 py-2.5 text-[13px] ${notice.kind === 'error' ? 'bg-bad-soft text-bad' : 'bg-ok-soft text-ok'}`}>{notice.text}</p>}
           {error && !d && <div className="rounded-xl bg-white p-6 text-center text-[13px]"><p className="text-bad">{error}</p><button onClick={() => void load()} className={`${btnPrimary} mt-3`}>Try again</button></div>}
           {!d && !error && <p className="p-6 text-center text-[13px] text-ink-soft">Loading...</p>}

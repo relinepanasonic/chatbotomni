@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { channelLabel, type InsightsData, type InsightSummary, type Stats } from '@/lib/types';
 import { durLabel, rpShort } from '@/lib/format';
+import { PageHeader, Tabs } from './PageHeader';
 import { Rail } from './Rail';
 
 /**
@@ -31,6 +32,7 @@ export function StatistikApp({ demo }: { demo: boolean }) {
   const [s, setS] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<'today' | 'team' | 'asks'>('today');
 
   const run = useCallback(async () => {
     setBusy(true);
@@ -41,38 +43,43 @@ export function StatistikApp({ demo }: { demo: boolean }) {
   useEffect(() => { void run(); }, [run]);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
       <Rail active="statistik" />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-          <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">Statistik {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
-              <p className="mt-1 text-[13.5px] text-ink-soft">How fast leads get an answer, what the bot handles, and how chats turn into sales.</p>
-            </div>
-            <div className="flex rounded-xl bg-[#e3edf7] p-1 text-[13px] font-bold" role="radiogroup" aria-label="Period">
+          <PageHeader title="Dashboard" demo={demo} description="How fast leads get an answer, what the bot handles, and what clients ask.">
+            <div className="flex rounded-xl bg-[#e6eef7] p-1 text-[13px] font-bold" role="radiogroup" aria-label="Period">
               {[7, 30, 90].map((d) => (
-                <button key={d} role="radio" aria-checked={days === d} onClick={() => setDays(d)} className={`rounded-lg px-3 py-1.5 transition ${days === d ? 'bg-white text-brand-dark shadow-sm' : 'text-ink-soft hover:text-ink'}`}>Last {d} days</button>
+                <button key={d} role="radio" aria-checked={days === d} onClick={() => setDays(d)} className={`rounded-lg px-3 py-1.5 transition ${days === d ? 'bg-white text-brand-dark shadow-sm' : 'text-ink-soft hover:text-ink'}`}>{d} days</button>
               ))}
             </div>
-          </header>
+          </PageHeader>
 
           {error && !s && <div className="rounded-xl bg-white p-6 text-center text-[13px]"><p className="text-bad">{error}</p><button onClick={() => void run()} className="mt-3 rounded-lg bg-brand px-4 py-2 text-[13px] font-bold text-white hover:bg-brand-dark">Try again</button></div>}
           {!s && !error && <p className="p-6 text-center text-[13px] text-ink-soft">Counting...</p>}
 
           {s && (
-            <div className={`space-y-5 transition-opacity ${busy ? 'opacity-60' : ''}`}>
-              <NowStrip s={s} />
-              <Tiles s={s} />
-              {s.booking && <Consultations b={s.booking} />}
-              <Daily s={s} />
-              <div className="grid gap-5 lg:grid-cols-2">
-                <BotCard s={s} />
-                <FunnelCard s={s} />
-              </div>
-              <People s={s} />
-              <Asks days={days} />
-              <p className="text-[12px] text-ink-soft">Reply time runs from a lead&apos;s first unanswered message to our next message, nights included. Replies typed on the phone are not captured by WhatsApp, so only replies from the bot, flows and this dashboard count.</p>
+            <div className={`transition-opacity ${busy ? 'opacity-60' : ''}`}>
+              <Tabs label="Dashboard sections" value={view} onChange={setView} items={[['today', 'Overview'], ['team', 'Bot and team'], ['asks', 'What clients ask']]} />
+              {view === 'today' && (
+                <div className="space-y-5">
+                  <NowStrip s={s} />
+                  <Tiles s={s} />
+                  {s.booking && <Consultations b={s.booking} />}
+                  <Daily s={s} />
+                </div>
+              )}
+              {view === 'team' && (
+                <div className="space-y-5">
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    <BotCard s={s} />
+                    <FunnelCard s={s} />
+                  </div>
+                  <People s={s} />
+                  <p className="text-[12px] text-ink-soft">Reply time runs from a lead&apos;s first unanswered message to our next message, nights included. Replies typed on the phone are not captured by WhatsApp, so only replies from the bot, flows and this dashboard count.</p>
+                </div>
+              )}
+              {view === 'asks' && <Asks days={days} />}
             </div>
           )}
         </div>
@@ -373,7 +380,6 @@ function Asks({ days }: { days: number }) {
   return (
     <section aria-label="What clients ask" className="space-y-3">
       <div>
-        <h2 className="text-[17px] font-extrabold tracking-tight">What clients ask</h2>
         <p className="text-[12.5px] text-ink-soft">Counted from what leads write in the chats: which package they ask about, what worries them, and what they say they need. A chat counts once per topic.</p>
       </div>
       {err && !d && <p className="rounded-xl bg-white p-4 text-[13px] text-bad">{err}</p>}

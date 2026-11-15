@@ -5,7 +5,9 @@ import { NODE_LABEL, type Graph, type NodeType } from '@/lib/flow';
 import { ageLabel, dateTimeLabel } from '@/lib/format';
 import type { Agent, FlowFull, FlowListItem, FlowRun, FlowsResponse, LeadSource, SourcesResponse } from '@/lib/types';
 import { FlowEditor } from './FlowEditor';
+import { PageHeader, SettingTabs } from './PageHeader';
 import { Rail } from './Rail';
+import { useMe } from '@/lib/useMe';
 
 /**
  * Skenario: the scenario flows of the sales bot, drawn as boxes and lines. A flow sits on top of the normal bot: a lead's message that matches no
@@ -30,6 +32,7 @@ const btnGhost = 'inline-flex items-center gap-1.5 rounded-lg border border-line
 const BLANK: Graph = { nodes: [], edges: [] };
 
 export function SkenarioApp({ demo }: { demo: boolean }) {
+  const me = useMe();
   const [tab, setTab] = useState<Tab>('flows');
   const [data, setData] = useState<FlowsResponse | null>(null);
   const [runs, setRuns] = useState<FlowRun[] | null>(null);
@@ -98,6 +101,21 @@ export function SkenarioApp({ demo }: { demo: boolean }) {
     if (!r.ok) say('error', r.error); else { say('ok', r.data.created ? `${r.data.created} example flows were added, all switched OFF. Open one, try it, then switch it on.` : 'The example flows are already there.'); await load(); }
   };
 
+  if (me && !me.isBod) {
+    return (
+      <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
+        <Rail active="skenario" />
+        <main className="min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+            <PageHeader title="Setting" demo={demo} />
+            <SettingTabs active="skenario" />
+            <p className="rounded-2xl border border-line bg-white p-5 text-[13.5px] text-ink-soft">Skenario is only for the BOD (founder and superadmin). Ask them if a flow needs to change.</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (editing) {
     return (
       <div className="flex w-full">
@@ -111,14 +129,12 @@ export function SkenarioApp({ demo }: { demo: boolean }) {
   }
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
       <Rail active="skenario" />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-          <header className="mb-5">
-            <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">Skenario {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
-            <p className="mt-1 text-[13.5px] text-ink-soft">Draw what the bot does for each kind of lead: boxes joined by lines. A flow sits on top of the normal bot. When no active flow fits a message, or a flow does not answer, the bot works exactly as before. The bot&apos;s ON switch (AI Kamus → Bot script &amp; settings) also controls the flows.</p>
-          </header>
+          <PageHeader title="Setting" demo={demo} description="Skenario: draw what the bot does for each kind of lead. A flow sits on top of the normal bot; when none fits, the bot answers as usual." />
+          <SettingTabs active="skenario" />
 
           <div className="mb-4 flex gap-1 rounded-xl bg-[#e3edf7] p-1 text-[13px] font-bold" role="tablist">
             {([['flows', 'Flows'], ['log', 'What the flows did']] as Array<[Tab, string]>).map(([k, label]) => (

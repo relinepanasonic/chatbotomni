@@ -112,6 +112,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     LABELS.push({ id: `lb${Date.now()}`, name, color: String(b?.color || 'blue') });
     return json({ ok: true });
   }
+  if (parts[0] === 'me') return json({ id: ME.id, name: 'Demo (founder)', role: 'founder', isBod: true });
   if (parts[0] === 'insights') {
     if (parts[1] === 'summary') return json({ executive: 'Selama 30 hari terakhir ada 58 calon client yang menulis dengan 240 pesan. Paket Juragan paling banyak ditanya (14 chat), disusul Optimize Shopee (9 chat). Kekhawatiran terbesar adalah harga dan biaya (19 chat), lalu hasil dan jaminan omzet (11 chat). Kebutuhan yang paling sering disebut adalah iklan Shopee yang tidak boros dan toko yang sepi pembeli.', insights: ['Banyak calon client menanyakan harga sebelum paham paket yang cocok.', 'Kekhawatiran soal hasil muncul di 11 chat: client ingin bukti.'], actions: [{ action: 'Siapkan perbandingan paket yang jelas untuk balasan pertama.', pic: 'Sales', why: 'Harga ditanyakan di 19 chat' }, { action: 'Kumpulkan contoh hasil client untuk dikirim bersama deck.', pic: 'Tim Konten', why: 'Jaminan omzet kekhawatiran kedua' }], model: 'demo', ai: true, days: Number(b?.days) || 30 });
     const s = Math.max(1, Number(url.searchParams.get('days') || 30) / 30);

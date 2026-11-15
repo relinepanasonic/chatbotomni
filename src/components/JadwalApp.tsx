@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AfterInfo, AfterResult, Agent, Meeting, MeetingsResponse, MeetSettings, NudgeInfo } from '@/lib/types';
+import { PageHeader, Tabs } from './PageHeader';
 import { Rail } from './Rail';
 import { clockWib, normalizeTime, timeChoices, toMinutes, weekPlan } from '@/lib/meet';
 
@@ -31,6 +32,7 @@ const btnGhost = 'rounded-lg border border-line px-3 py-1.5 text-[12px] font-bol
 export function JadwalApp({ demo }: { demo: boolean }) {
   const [d, setD] = useState<MeetingsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'meetings' | 'booking' | 'follow' | 'google'>('meetings');
   const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const load = useCallback(async () => { const r = await api<MeetingsResponse>('/meetings'); if (r.ok) { setD(r.data); setError(null); } else setError(r.error); }, []);
   useEffect(() => { void load(); }, [load]);
@@ -60,21 +62,19 @@ export function JadwalApp({ demo }: { demo: boolean }) {
   const upcoming = (d?.meetings ?? []).filter((m) => m.status === 'booked' && new Date(m.ends_at) > new Date()).length;
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
       <Rail active="jadwal" />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-          <header className="mb-5">
-            <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">Jadwal {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
-            <p className="mt-1 text-[13.5px] text-ink-soft">Free consultations with the expert team. The bot invites every lead and books the time they pick; each meeting goes on Google Calendar with a Meet link, and the lead gets a reminder an hour before.</p>
-          </header>
+          <PageHeader title="Jadwal" demo={demo} description="Free consultations with the expert team: who is booked, and how the bot and follow-ups invite leads." />
           {notice && <p role="alert" className={`mb-4 rounded-xl px-4 py-2.5 text-[13px] ${notice.kind === 'error' ? 'bg-bad-soft text-bad' : 'bg-ok-soft text-ok'}`}>{notice.text}</p>}
           {error && !d && <div className="rounded-xl bg-white p-6 text-center text-[13px]"><p className="text-bad">{error}</p><button onClick={() => void load()} className={`${btnPrimary} mt-3`}>Try again</button></div>}
           {!d && !error && <p className="p-6 text-center text-[13px] text-ink-soft">Loading...</p>}
 
           {d && (
             <div className="space-y-5">
-              <section aria-label="Meetings" className="rounded-2xl border border-line bg-white p-5">
+              <Tabs label="Jadwal sections" value={view} onChange={setView} items={[['meetings', `Meetings${upcoming ? ` (${upcoming})` : ''}`], ['booking', 'Booking settings'], ['follow', 'Follow-ups'], ['google', 'Google Calendar']]} />
+              {view === 'meetings' && <section aria-label="Meetings" className="rounded-2xl border border-line bg-white p-5">
                 <h2 className="text-[15px] font-extrabold">{upcoming ? `${upcoming} upcoming meeting${upcoming > 1 ? 's' : ''}` : 'No upcoming meetings'}</h2>
                 {!d.settings.enabled && <p className="mt-1 text-[12.5px] text-warn">Booking is switched off: the bot does not invite leads yet. Switch it on below.</p>}
                 {groups.length === 0 ? <p className="mt-2 text-[12.5px] text-ink-soft">When a lead books a time, it shows here.</p> : (
@@ -113,11 +113,15 @@ export function JadwalApp({ demo }: { demo: boolean }) {
                     ))}
                   </div>
                 )}
-              </section>
-              <SettingsCard initial={d.settings} meetings={d.meetings} canEdit={d.canEdit} say={setNotice} reload={load} />
-              {d.after && <AfterCard a={d.after} canEdit={d.canEdit} say={setNotice} reload={load} />}
-              {d.nudges && <FollowUpCard n={d.nudges} canEdit={d.canEdit} say={setNotice} reload={load} />}
-              <GoogleCard d={d} say={setNotice} reload={load} />
+              </section>}
+              {view === 'booking' && <SettingsCard initial={d.settings} meetings={d.meetings} canEdit={d.canEdit} say={setNotice} reload={load} />}
+              {view === 'follow' && (
+                <div className="space-y-5">
+                  {d.after && <AfterCard a={d.after} canEdit={d.canEdit} say={setNotice} reload={load} />}
+                  {d.nudges && <FollowUpCard n={d.nudges} canEdit={d.canEdit} say={setNotice} reload={load} />}
+                </div>
+              )}
+              {view === 'google' && <GoogleCard d={d} say={setNotice} reload={load} />}
             </div>
           )}
         </div>

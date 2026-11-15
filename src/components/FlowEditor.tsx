@@ -203,7 +203,7 @@ export function FlowEditor({ initial, agents, sources, canEdit, saving, error, w
   const canActivate = validation.errors.length === 0;
 
   return (
-    <div className="flex h-dvh w-full flex-col bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full flex-col bg-bg text-ink max-md:pb-16">
       {/* ------------------------------------------------ top bar */}
       <header className="flex flex-wrap items-center gap-3 border-b border-line bg-panel px-4 py-2.5">
         <button onClick={close} className={btnGhost}>Back</button>

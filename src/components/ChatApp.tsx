@@ -204,7 +204,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
     remSeen.current = new Set([...(remSeen.current || []), ...due.map((d) => d.key)]);
   }, [list]);
 
-  useEffect(() => { document.title = counts.unserved > 0 ? `(${counts.unserved}) Chat Inbox` : 'Chat Inbox'; }, [counts.unserved]);
+  useEffect(() => { document.title = counts.unserved > 0 ? `(${counts.unserved}) Chat` : 'Chat'; }, [counts.unserved]);
 
   const toggleAlerts = async () => {
     if (alertsOn) { setAlertsOn(false); try { localStorage.setItem(ALERT_KEY, '0'); } catch { /* ignore */ } return; }
@@ -316,13 +316,13 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   }, [thread]);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
       <Rail active="inbox" />
 
       {/* ------------------------------------------------ 1. inbox list */}
       <section className={`${selected ? 'hidden lg:flex' : 'flex'} w-full shrink-0 flex-col border-r border-line bg-panel lg:w-[360px]`} aria-label="Conversations">
         <header className="flex items-center justify-between px-4 pb-2 pt-4">
-          <h1 className="text-[17px] font-extrabold tracking-tight">Inbox</h1>
+          <h1 className="text-[18px] font-extrabold tracking-tight">Chat</h1>
           <div className="flex items-center gap-2 text-[11px] text-ink-soft">
             {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 font-bold text-warn">DEMO</span>}
             {me && <span>{me.name}</span>}
