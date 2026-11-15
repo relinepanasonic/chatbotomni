@@ -32,7 +32,7 @@ const btnGhost = 'rounded-lg border border-line px-3 py-1.5 text-[12px] font-bol
 export function JadwalApp({ demo }: { demo: boolean }) {
   const [d, setD] = useState<MeetingsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'meetings' | 'booking' | 'follow' | 'google'>('meetings');
+  const [view, setView] = useState<'meetings' | 'calendar' | 'booking' | 'follow' | 'google'>('meetings');
   const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const load = useCallback(async () => { const r = await api<MeetingsResponse>('/meetings'); if (r.ok) { setD(r.data); setError(null); } else setError(r.error); }, []);
   useEffect(() => { void load(); }, [load]);
@@ -73,7 +73,7 @@ export function JadwalApp({ demo }: { demo: boolean }) {
 
           {d && (
             <div className="space-y-5">
-              <Tabs label="Jadwal sections" value={view} onChange={setView} items={[['meetings', `Meetings${upcoming ? ` (${upcoming})` : ''}`], ['booking', 'Booking settings'], ['follow', 'Follow-ups'], ['google', 'Google Calendar']]} />
+              <Tabs label="Jadwal sections" value={view} onChange={setView} items={[['meetings', `Meetings${upcoming ? ` (${upcoming})` : ''}`], ['calendar', 'Calendar'], ['booking', 'Booking settings'], ['follow', 'Follow-ups'], ['google', 'Google connection']]} />
               {view === 'meetings' && <section aria-label="Meetings" className="rounded-2xl border border-line bg-white p-5">
                 <h2 className="text-[15px] font-extrabold">{upcoming ? `${upcoming} upcoming meeting${upcoming > 1 ? 's' : ''}` : 'No upcoming meetings'}</h2>
                 {!d.settings.enabled && <p className="mt-1 text-[12.5px] text-warn">Booking is switched off: the bot does not invite leads yet. Switch it on below.</p>}
@@ -114,6 +114,7 @@ export function JadwalApp({ demo }: { demo: boolean }) {
                   </div>
                 )}
               </section>}
+              {view === 'calendar' && <CalendarCard settings={d.settings} meetings={d.meetings} canEdit={d.canEdit} />}
               {view === 'booking' && <SettingsCard initial={d.settings} meetings={d.meetings} canEdit={d.canEdit} say={setNotice} reload={load} />}
               {view === 'follow' && (
                 <div className="space-y-5">
@@ -266,6 +267,58 @@ function GoogleCard({ d, say, reload }: { d: MeetingsResponse; say: (n: { kind: 
 }
 
 
+/* ------------------------------------------------------------------ the calendar: the next 7 days of what leads can book (the saved hours) */
+function CalendarCard({ settings, meetings, canEdit }: { settings: MeetSettings; meetings: Meeting[]; canEdit: boolean }) {
+  const s = useMemo(() => ({ ...settings, from: normalizeTime(settings.from) ?? '10:00', to: normalizeTime(settings.to) ?? '17:00' }), [settings]);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
+  const problem = !s.days.length ? 'No day is chosen yet.' : toMinutes(s.to) <= toMinutes(s.from) ? 'The end time must be after the start time.' : toMinutes(s.to) - toMinutes(s.from) < s.minutes ? `The hours are shorter than one ${s.minutes}-minute meeting.` : null;
+  const booked = useMemo(() => meetings.filter((m) => m.status === 'booked').map((m) => ({ start: new Date(m.starts_at), end: new Date(m.ends_at), who: m.chat || m.lead_name || 'Lead' })), [meetings]);
+  const plan = useMemo(() => (problem ? [] : weekPlan(s, now, booked, 7)), [s, now, booked, problem]);
+  const open = plan.reduce((n, d) => n + d.slots.length, 0);
+  return (
+    <section aria-label="Calendar" className="rounded-2xl border border-line bg-white p-5">
+      <h2 className="text-[15px] font-extrabold">Calendar</h2>
+      <p className="mt-0.5 text-[12.5px] text-ink-soft">The next 7 days: the times leads can book, and the meetings already booked.{canEdit ? ' Change the days and hours in Booking settings.' : ''}</p>
+      <div className="mt-4 rounded-xl bg-brand-softer p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-[14px] font-extrabold">What leads can book in the next 7 days</h3>
+          {!problem && <p className="text-[12.5px] text-ink-soft"><b className="text-ink">{open}</b> free time{open === 1 ? '' : 's'}{booked.length ? `, ${booked.filter((b) => b.end > now).length} booked` : ''}</p>}
+        </div>
+        {problem ? <p role="alert" className="mt-3 rounded-lg bg-bad-soft px-3 py-2 text-[12.5px] text-bad">{problem}</p> : (
+          <div className="-mx-1 mt-3 overflow-x-auto pb-1">
+            <ol className="grid min-w-[640px] grid-cols-7 gap-2 px-1">
+              {plan.map((d) => {
+                const dayBooked = booked.filter((b) => b.start.getTime() >= d.date.getTime() && b.start.getTime() < d.date.getTime() + 86400000);
+                const items = [...d.slots.map((t) => ({ t, who: null as string | null })), ...dayBooked.map((b) => ({ t: b.start, who: b.who }))].sort((a, b) => a.t.getTime() - b.t.getTime());
+                // booked meetings are always shown; free times fill the rest of the column
+                const freeRoom = Math.max(0, 8 - dayBooked.length);
+                const shown = [...dayBooked.map((b) => ({ t: b.start, who: b.who as string | null })), ...d.slots.slice(0, freeRoom).map((t) => ({ t, who: null as string | null }))].sort((a, b) => a.t.getTime() - b.t.getTime());
+                const today = d.key === plan[0].key;
+                return (
+                  <li key={d.key} className={`flex min-h-36 flex-col rounded-xl border p-2 ${d.open ? 'border-line bg-white' : 'border-transparent bg-[#eaf0f6]'}`}>
+                    <p className={`text-[11.5px] font-bold ${today ? 'text-brand-dark' : 'text-ink-soft'}`}>{today ? 'Today' : HARI[d.weekday]}</p>
+                    <p className="text-[17px] font-extrabold leading-tight">{new Date(d.date.getTime() + 7 * 3600000).getUTCDate()}</p>
+                    <div className="mt-2 flex flex-1 flex-col gap-1">
+                      {!d.open && <p className="text-[11px] text-ink-soft">Closed</p>}
+                      {d.open && items.length === 0 && <p className="text-[11px] leading-snug text-ink-soft">{today ? 'Too soon for today' : 'No free time'}</p>}
+                      {shown.map((x) => x.who
+                        ? <span key={x.t.toISOString()} title={`Booked: ${x.who}`} className="truncate rounded-md bg-ok px-1.5 py-1 text-[11px] font-bold text-white">{clockWib(x.t)} {x.who.split(/\s+/)[0]}</span>
+                        : <span key={x.t.toISOString()} className="rounded-md border border-brand/40 bg-white px-1.5 py-1 text-center text-[11.5px] font-bold text-brand-dark">{clockWib(x.t)}</span>)}
+                      {items.length > shown.length && <span className="text-center text-[11px] font-semibold text-ink-soft">+{items.length - shown.length} more</span>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
+        <p className="mt-3 text-[11.5px] text-ink-soft">Times that are busy on your Google Calendar are also left out when the bot offers them; they are not shown here.</p>
+      </div>
+    </section>
+  );
+}
+
 /* ------------------------------------------------------------------ bookable times: plain choices, and a live week board of what leads can book */
 const WEEK = [[1, 'Sen'], [2, 'Sel'], [3, 'Rab'], [4, 'Kam'], [5, 'Jum'], [6, 'Sab'], [0, 'Min']] as const;
 const PRESETS: Array<{ label: string; days: number[] }> = [{ label: 'Weekdays', days: [1, 2, 3, 4, 5] }, { label: 'Mon to Sat', days: [1, 2, 3, 4, 5, 6] }, { label: 'Every day', days: [0, 1, 2, 3, 4, 5, 6] }];
@@ -302,15 +355,9 @@ function SettingsCard({ initial, meetings, canEdit, say, reload }: { initial: Me
   const [saved, setSaved] = useState(() => clean(initial));
   const [s, setS] = useState(() => clean(initial));
   const [busy, setBusy] = useState(false);
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
 
   const dirty = JSON.stringify({ ...s, enabled: undefined }) !== JSON.stringify({ ...saved, enabled: undefined });
   const problem = !s.days.length ? 'Pick at least one day.' : toMinutes(s.to) <= toMinutes(s.from) ? 'The end time must be after the start time.' : toMinutes(s.to) - toMinutes(s.from) < s.minutes ? `The hours are shorter than one ${s.minutes}-minute meeting.` : null;
-
-  const booked = useMemo(() => meetings.filter((m) => m.status === 'booked').map((m) => ({ start: new Date(m.starts_at), end: new Date(m.ends_at), who: m.chat || m.lead_name || 'Lead' })), [meetings]);
-  const plan = useMemo(() => (problem ? [] : weekPlan(s, now, booked, 7)), [s, now, booked, problem]);
-  const open = plan.reduce((n, d) => n + d.slots.length, 0);
 
   const save = async (patch: Partial<MeetSettings>, ok: string) => {
     setBusy(true);
@@ -385,41 +432,8 @@ function SettingsCard({ initial, meetings, canEdit, say, reload }: { initial: Me
         </Row>
       </div>
 
-      {/* what leads can book, live: every change above shows here before it is saved */}
-      <div className="border-t border-line bg-brand-softer px-5 py-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-[14px] font-extrabold">What leads can book in the next 7 days</h3>
-          {!problem && <p className="text-[12.5px] text-ink-soft"><b className="text-ink">{open}</b> free time{open === 1 ? '' : 's'}{booked.length ? `, ${booked.filter((b) => b.end > now).length} booked` : ''}</p>}
-        </div>
-        {problem ? <p role="alert" className="mt-3 rounded-lg bg-bad-soft px-3 py-2 text-[12.5px] text-bad">{problem}</p> : (
-          <div className="-mx-1 mt-3 overflow-x-auto pb-1">
-            <ol className="grid min-w-[640px] grid-cols-7 gap-2 px-1">
-              {plan.map((d) => {
-                const dayBooked = booked.filter((b) => b.start.getTime() >= d.date.getTime() && b.start.getTime() < d.date.getTime() + 86400000);
-                const items = [...d.slots.map((t) => ({ t, who: null as string | null })), ...dayBooked.map((b) => ({ t: b.start, who: b.who }))].sort((a, b) => a.t.getTime() - b.t.getTime());
-                // booked meetings are always shown; free times fill the rest of the column
-                const freeRoom = Math.max(0, 8 - dayBooked.length);
-                const shown = [...dayBooked.map((b) => ({ t: b.start, who: b.who as string | null })), ...d.slots.slice(0, freeRoom).map((t) => ({ t, who: null as string | null }))].sort((a, b) => a.t.getTime() - b.t.getTime());
-                const today = d.key === plan[0].key;
-                return (
-                  <li key={d.key} className={`flex min-h-36 flex-col rounded-xl border p-2 ${d.open ? 'border-line bg-white' : 'border-transparent bg-[#eaf0f6]'}`}>
-                    <p className={`text-[11.5px] font-bold ${today ? 'text-brand-dark' : 'text-ink-soft'}`}>{today ? 'Today' : HARI[d.weekday]}</p>
-                    <p className="text-[17px] font-extrabold leading-tight">{new Date(d.date.getTime() + 7 * 3600000).getUTCDate()}</p>
-                    <div className="mt-2 flex flex-1 flex-col gap-1">
-                      {!d.open && <p className="text-[11px] text-ink-soft">Closed</p>}
-                      {d.open && items.length === 0 && <p className="text-[11px] leading-snug text-ink-soft">{today ? 'Too soon for today' : 'No free time'}</p>}
-                      {shown.map((x) => x.who
-                        ? <span key={x.t.toISOString()} title={`Booked: ${x.who}`} className="truncate rounded-md bg-ok px-1.5 py-1 text-[11px] font-bold text-white">{clockWib(x.t)} {x.who.split(/\s+/)[0]}</span>
-                        : <span key={x.t.toISOString()} className="rounded-md border border-brand/40 bg-white px-1.5 py-1 text-center text-[11.5px] font-bold text-brand-dark">{clockWib(x.t)}</span>)}
-                      {items.length > shown.length && <span className="text-center text-[11px] font-semibold text-ink-soft">+{items.length - shown.length} more</span>}
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
-        )}
-        <p className="mt-3 text-[11.5px] text-ink-soft">Times that are busy on your Google Calendar are also left out when the bot offers them; they are not shown here.</p>
+      <div className="border-t border-line bg-brand-softer px-5 py-3">
+        <p className="text-[12.5px] text-ink-soft">To see exactly which times leads can book (and who is booked), open the <b className="text-ink">Calendar</b> tab. It shows the saved hours.</p>
       </div>
 
       {canEdit && (

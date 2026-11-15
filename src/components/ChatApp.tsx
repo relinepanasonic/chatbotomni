@@ -508,7 +508,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   className={`max-h-40 min-h-[42px] flex-1 resize-none rounded-xl border px-3.5 py-2.5 text-[13.5px] outline-none placeholder:text-[#8aa0b6] focus:bg-white ${mode === 'note' ? 'border-[#f2d9a0] bg-[#fff6e0] focus:border-warn' : 'border-line bg-brand-softer focus:border-brand'}`} />
                 <button onClick={send} disabled={sending || (mode === 'reply' && windowClosed) || (!text.trim() && !(attach && mode === 'reply'))} aria-label={mode === 'note' ? 'Save note' : 'Send message'} className={`flex h-[42px] shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-40 ${mode === 'note' ? 'w-auto bg-warn px-3 text-[12.5px] font-bold hover:brightness-95' : 'w-[42px] bg-brand hover:bg-brand-dark'}`}>{mode === 'note' ? 'Add note' : <Icon d={I.send} size={18} />}</button>
               </div>
-              <p className="mt-1.5 text-[10.5px] text-ink-soft">{mode === 'note' ? 'Notes are only for the team. The lead never sees them.' : `Sent from ${channel === 'whatsapp' ? 'the sales number' : channel === 'instagram' ? 'your Instagram account' : 'your Facebook Page'}. Replying pauses the bot for this chat and makes it yours if nobody has it.`}</p>
+              <p className="mt-1.5 text-[10.5px] text-ink-soft">{mode === 'note' ? 'Notes are only for the team. The lead never sees them.' : `Sent from ${channel === 'whatsapp' ? 'the sales number' : channel === 'instagram' ? 'your Instagram account' : 'your Facebook Page'}.`}</p>
             </footer>
           </>
         )}
