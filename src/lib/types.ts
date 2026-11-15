@@ -24,7 +24,8 @@ export interface ConversationSummary {
 /** What clients ask in the chats (ERP src/lib/chat/insights.ts): packages, worries, needs. Counted from the chats by keyword lists. */
 export interface InsightTopic { key: string; label: string; chats: number; mentions: number; examples: string[] }
 export interface InsightsData { days: number; chats: number; messages: number; packages: InsightTopic[]; concerns: InsightTopic[]; unmatched: number; needs: Array<{ need: string; chats: number }>; handedOver: Array<{ text: string }> }
-export interface InsightSummary { text: string; model: string | null; days: number }
+export interface InsightAction { action: string; pic: string; why: string }
+export interface InsightSummary { executive: string; insights: string[]; actions: InsightAction[]; model: string | null; ai: boolean; days: number }
 export type Payment = 'unpaid' | 'partial' | 'paid' | 'overdue';
 /** The pipeline board (ERP src/lib/chat/data.ts loadPipeline): the same deals as the ERP board. */
 export interface BoardDeal { id: string; title: string; client: string; stage: string; value: number; sales: string | null; salesId: string | null; groupId: string | null; daysInStage: number; payment: Payment | null; nextMeetingAt: string | null }
