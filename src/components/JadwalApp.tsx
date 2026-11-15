@@ -100,7 +100,7 @@ export function JadwalApp({ demo }: { demo: boolean }) {
                                 {m.status === 'booked' && !past ? <Attendance m={m} /> : <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS[m.status].cls}`}>{STATUS[m.status].label}</span>}
                                 {m.status === 'booked' && (
                                   <span className="flex gap-1.5">
-                                    {past && <button className={btnGhost} title={d.after?.thanks ? 'The lead gets a thank-you, and the ERP lead moves to Negotiation.' : 'The ERP lead moves to Negotiation.'} onClick={() => void setStatus(m, 'done')}>Done</button>}
+                                    {past && <button className={btnGhost} title={d.after?.thanks ? 'The lead gets a thank-you, and the ERP lead moves to Meeting Done.' : 'The ERP lead moves to Meeting Done.'} onClick={() => void setStatus(m, 'done')}>Done</button>}
                                     {past && <button className={btnGhost} title={d.after?.noShow ? 'The lead gets 3 new times to book again.' : undefined} onClick={() => void setStatus(m, 'no_show')}>Did not come</button>}
                                     {!past && <button className={`${btnGhost} hover:!border-bad hover:!text-bad`} onClick={() => void setStatus(m, 'cancelled')}>Cancel</button>}
                                   </span>
@@ -156,7 +156,7 @@ function AfterCard({ a, canEdit, say, reload }: { a: AfterInfo; canEdit: boolean
       <h2 className="text-[15px] font-extrabold">After the meeting</h2>
       <p className="mt-0.5 text-[12.5px] text-ink-soft">When a consultation has passed, mark it <b>Done</b> or <b>Did not come</b> in the list above. This is what happens next.</p>
       <div className="mt-4">
-        <Row title="Done" hint="The ERP lead always moves to Negotiation (made first if there is none).">
+        <Row title="Done" hint="The ERP lead always moves to Meeting Done (made first if there is none).">
           <div className="flex items-start justify-between gap-4">
             <p className="text-[12.5px] text-ink-soft">The lead gets a thank-you, and is told the salesperson sends the summary and recommendation.</p>
             <Switch on={a.thanks} label="Thank-you message" onChange={(v) => void save({ thanks: v }, v ? 'The thank-you is on.' : 'The thank-you is off.')} />

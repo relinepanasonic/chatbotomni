@@ -428,7 +428,7 @@ function meetingsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any
   if (!m) return json({ error: 'Meeting not found.' }, 404);
   const was = m.status;
   m.status = b?.status;
-  const after = was === 'booked' && m.status === 'done' ? { message: demoAfter.thanks ? 'sent' : 'off', stage: 'Negotiation', detail: `${demoAfter.thanks ? 'The lead got a thank-you. ' : ''}The ERP lead is in Negotiation.` }
+  const after = was === 'booked' && m.status === 'done' ? { message: demoAfter.thanks ? 'sent' : 'off', stage: 'Meeting Done', detail: `${demoAfter.thanks ? 'The lead got a thank-you. ' : ''}The ERP lead is in Meeting Done.` }
     : was === 'booked' && m.status === 'no_show' ? { message: demoAfter.noShow ? 'sent' : 'off', detail: demoAfter.noShow ? 'The lead got 3 new times to book again.' : 'Marked as did not come.' } : null;
   return json({ ok: true, after });
 }

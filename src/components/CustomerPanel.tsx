@@ -27,8 +27,8 @@ async function call<T>(path: string, body?: unknown): Promise<{ ok: true; data: 
 
 const AVATAR = ['#2f9bf0', '#14b8a6', '#8b7cf6', '#f59e0b', '#ef6b8a', '#4f9d69', '#0ea5e9'];
 const avatarColor = (s: string) => AVATAR[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR.length];
-const PIPELINE = ['Lead', 'Contacted', 'Negotiation', 'Invoice', 'Deal'] as const;
-const MANUAL = new Set(['Lead', 'Contacted', 'Negotiation']);
+import { LOCKED, LOST, MANUAL, PIPELINE, STAGE_HINT, stageLabel, stagePart } from '@/lib/pipeline';
+const PART_BAR = { lead: 'bg-brand', meeting: 'bg-[#7c5cff]', sale: 'bg-ok' } as const;
 const COLORS = Object.keys(LABEL_CLASS);
 
 const input = 'w-full rounded-lg border border-line bg-white px-2.5 py-2 text-[13px] text-ink outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/30';
@@ -152,8 +152,9 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
         <section className="space-y-4 border-t border-line px-5 py-4" aria-label="Deals">
           {deals.map((d) => {
             const mine = !isSales || !d.salesId || d.salesId === me?.id;
-            const cold = d.stage === 'Cold Case';
+            const cold = d.stage === LOST;
             const at = PIPELINE.indexOf(d.stage as (typeof PIPELINE)[number]);
+            const locked = LOCKED.has(d.stage);
             return (
               <div key={d.id}>
                 <div className="flex items-baseline justify-between gap-2">
@@ -163,29 +164,31 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
                 <p className="text-[11.5px] text-ink-soft">{d.sales ? `Owned by ${d.sales}` : 'No owner'}{!mine ? ', so only they can move it' : ''}</p>
                 {cold ? (
                   <div className="mt-2 flex items-center justify-between rounded-lg bg-[#eef2f6] px-3 py-2 text-[12.5px]">
-                    <span className="font-bold text-ink-soft">Gone cold</span>
-                    {mine && <button className={btnText} onClick={() => void moveStage(d.id, 'Lead')}>Bring back as lead</button>}
+                    <span className="font-bold text-ink-soft">Lost</span>
+                    {mine && <button className={btnText} onClick={() => void moveStage(d.id, 'Lead')}>Bring back as new lead</button>}
                   </div>
                 ) : (
                   <>
-                    <ol className="mt-2 grid grid-cols-5 gap-1" aria-label="Stage">
-                      {PIPELINE.map((s, i) => {
-                        const reached = at >= i;
-                        const now = at === i;
-                        const can = mine && MANUAL.has(s) && !(d.stage === 'Invoice' || d.stage === 'Deal') && !now;
-                        return (
-                          <li key={s}>
-                            <button disabled={!can} onClick={() => void moveStage(d.id, s)} aria-current={now ? 'step' : undefined}
-                              title={can ? `Move to ${s}` : s === 'Invoice' || s === 'Deal' ? `${s} is set by the invoice and payment in the ERP` : now ? 'Current stage' : undefined}
-                              className={`group w-full text-left ${can ? 'cursor-pointer' : 'cursor-default'}`}>
-                              <span className={`block h-1.5 rounded-full transition ${reached ? (s === 'Deal' ? 'bg-ok' : 'bg-brand') : 'bg-[#dbe8f4]'} ${can ? 'group-hover:bg-brand/50' : ''}`} />
-                              <span className={`mt-1 block truncate text-[10.5px] ${now ? 'font-extrabold text-ink' : 'text-ink-soft'} ${can ? 'group-hover:text-brand-dark' : ''}`}>{s === 'Negotiation' ? 'Nego' : s}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
+                    <ol className="mt-2 flex gap-[3px]" aria-label={`Stage ${at + 1} of ${PIPELINE.length}: ${stageLabel(d.stage)}`}>
+                      {PIPELINE.map((s, i) => (
+                        <li key={s} title={stageLabel(s)} className={`h-1.5 flex-1 rounded-full ${at >= i ? PART_BAR[stagePart(s)] : 'bg-[#dbe8f4]'}`} />
+                      ))}
                     </ol>
-                    {mine && MANUAL.has(d.stage) && <button className={`${btnText} mt-2`} onClick={() => void moveStage(d.id, 'Cold Case')}>Mark as gone cold</button>}
+                    <div className="mt-1.5 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-extrabold">{stageLabel(d.stage)}</p>
+                        <p className="text-[11.5px] leading-snug text-ink-soft">{STAGE_HINT[d.stage] || ''}</p>
+                      </div>
+                      {mine && !locked && (
+                        <select aria-label="Move to another stage" value="" onChange={(e) => { if (e.target.value) void moveStage(d.id, e.target.value); }}
+                          className="shrink-0 rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-bold text-brand-dark outline-none focus:border-brand">
+                          <option value="">Move to...</option>
+                          {PIPELINE.filter((s) => MANUAL.has(s) && s !== d.stage).map((s) => <option key={s} value={s}>{stageLabel(s)}</option>)}
+                          <option value={LOST}>Lost</option>
+                        </select>
+                      )}
+                    </div>
+                    {locked && <p className="mt-1 text-[11.5px] text-ink-soft">From here the invoice and the payment in the ERP move it on.</p>}
                   </>
                 )}
               </div>
