@@ -18,7 +18,10 @@ export interface ConversationSummary {
   source: ChatSource | null;
   labels?: ChatLabel[];
   nextReminder?: NextReminder | null;
+  stage?: string | null;           // the ERP pipeline stage of the chat's deal (stored name), null without a deal
+  payment?: Payment | null;       // where its invoice stands
 }
+export type Payment = 'unpaid' | 'partial' | 'paid' | 'overdue';
 export interface Counts { all: number; mine: number; unserved: number; bot: number; human: number; resolved: number; followup?: number }
 export interface ListResponse { me?: { id: string; name: string; role: string }; conversations: ConversationSummary[]; counts: Counts; labels?: ChatLabel[]; features?: { media: boolean } }
 
@@ -33,7 +36,7 @@ export interface Thread {
   assignedTo: Person | null; resolved: boolean;
   source: ChatSource | null; sourceId: string | null; firstMessage: string | null;
   client: { id: string; name: string; sales: string | null; serviceEnd: string | null } | null;
-  deals: Array<{ id: string; title: string; stage: string; value: number; sales: string | null; salesId?: string | null }>;
+  deals: Array<{ id: string; title: string; stage: string; value: number; sales: string | null; salesId?: string | null; payment?: Payment | null; invoice?: { number: string | null; total: number; paid: number; due: string | null } | null }>;
   labels: ChatLabel[];
   reminders: ReminderItem[];
   /** What the lead answered to "Ask a question" boxes of the flows. */

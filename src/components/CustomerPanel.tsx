@@ -27,7 +27,8 @@ async function call<T>(path: string, body?: unknown): Promise<{ ok: true; data: 
 
 const AVATAR = ['#2f9bf0', '#14b8a6', '#8b7cf6', '#f59e0b', '#ef6b8a', '#4f9d69', '#0ea5e9'];
 const avatarColor = (s: string) => AVATAR[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR.length];
-import { LOCKED, LOST, MANUAL, PIPELINE, STAGE_HINT, stageLabel, stagePart } from '@/lib/pipeline';
+import { LOCKED, LOST, MANUAL, PAYMENT_CHIP, PAYMENT_LABEL, PIPELINE, STAGE_HINT, stageLabel, stagePart } from '@/lib/pipeline';
+const ERP = 'https://erp.profesoronline.id';
 const PART_BAR = { lead: 'bg-brand', meeting: 'bg-[#7c5cff]', sale: 'bg-ok' } as const;
 const COLORS = Object.keys(LABEL_CLASS);
 
@@ -189,6 +190,16 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
                       )}
                     </div>
                     {locked && <p className="mt-1 text-[11.5px] text-ink-soft">From here the invoice and the payment in the ERP move it on.</p>}
+                    {d.invoice && (
+                      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-brand-softer px-3 py-2 text-[12px]">
+                        {d.payment && <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${PAYMENT_CHIP[d.payment]}`}>{PAYMENT_LABEL[d.payment]}</span>}
+                        <span className="font-bold">{d.invoice.number || 'Invoice'}</span>
+                        <span className="text-ink-soft">Rp {d.invoice.paid.toLocaleString('id-ID')} of {d.invoice.total.toLocaleString('id-ID')}{d.invoice.due ? `, due ${d.invoice.due}` : ''}</span>
+                      </div>
+                    )}
+                    {d.stage === 'Deal' && (
+                      <p className="mt-2 text-[12px] text-ink-soft">Active client{thread?.client?.serviceEnd ? `, project ends ${thread.client.serviceEnd}` : ''}. <a className="font-bold text-brand-dark underline" href={`${ERP}/optimizing/clients`} target="_blank" rel="noreferrer">Open in Optimizing &gt; Clients</a></p>
+                    )}
                   </>
                 )}
               </div>
