@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { channelLabel, type Stats } from '@/lib/types';
+import { channelLabel, type InsightsData, type InsightSummary, type Stats } from '@/lib/types';
 import { durLabel, rpShort } from '@/lib/format';
 import { Rail } from './Rail';
 
@@ -71,6 +71,7 @@ export function StatistikApp({ demo }: { demo: boolean }) {
                 <FunnelCard s={s} />
               </div>
               <People s={s} />
+              <Asks days={days} />
               <p className="text-[12px] text-ink-soft">Reply time runs from a lead&apos;s first unanswered message to our next message, nights included. Replies typed on the phone are not captured by WhatsApp, so only replies from the bot, flows and this dashboard count.</p>
             </div>
           )}
@@ -306,6 +307,118 @@ function People({ s }: { s: Stats }) {
           </table>
           <p className="mt-2 text-[11.5px] text-ink-soft">Median reply in green is within 5 minutes, amber within 15, red slower.</p>
         </div>
+      )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ what clients ask: packages, worries, needs (counted from the chats) */
+const mark = (n: number, max: number) => ({ width: n ? `max(${(n / Math.max(1, max)) * 100}%, 4px)` : 0 });
+
+function TopicList({ title, hint, rows, color }: { title: string; hint: string; rows: InsightsData['packages']; color: string }) {
+  const max = Math.max(1, ...rows.map((r) => r.chats));
+  return (
+    <section className="rounded-2xl border border-line bg-white p-4" aria-label={title}>
+      <h3 className="text-[14px] font-extrabold">{title}</h3>
+      <p className="text-[12px] text-ink-soft">{hint}</p>
+      {rows.length === 0 ? <p className="mt-3 text-[12.5px] text-ink-soft">Nothing yet in this period.</p> : (
+        <ul className="mt-3 space-y-3">
+          {rows.slice(0, 8).map((r) => (
+            <li key={r.key}>
+              <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
+                <span className="font-bold">{r.label}</span>
+                <span className="shrink-0 text-ink-soft">{r.chats} chat{r.chats === 1 ? '' : 's'}</span>
+              </div>
+              <div className="h-2.5 rounded-r-[4px]" style={{ ...mark(r.chats, max), background: color }} title={`${r.label}: ${r.chats} chats, ${r.mentions} messages`} />
+              {r.examples.length > 0 && <p className="mt-1 text-[11.5px] italic leading-snug text-ink-soft">&ldquo;{r.examples[0]}&rdquo;</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function Asks({ days }: { days: number }) {
+  const [d, setD] = useState<InsightsData | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [sum, setSum] = useState<InsightSummary | null>(null);
+  const [writing, setWriting] = useState(false);
+  const [sumErr, setSumErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    setSum(null); setSumErr(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/insights?days=${days}`, { cache: 'no-store' });
+        const j = await res.json().catch(() => null);
+        if (!live) return;
+        if (res.ok) { setD(j as InsightsData); setErr(null); } else setErr(String(j?.error || 'Could not load what clients ask.'));
+      } catch { if (live) setErr('No connection.'); }
+    })();
+    return () => { live = false; };
+  }, [days]);
+
+  const write = async (fresh: boolean) => {
+    setWriting(true); setSumErr(null);
+    try {
+      const res = await fetch('/api/insights/summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days, fresh }) });
+      const j = await res.json().catch(() => null);
+      if (res.ok) setSum(j as InsightSummary); else setSumErr(String(j?.error || 'The summary could not be written.'));
+    } catch { setSumErr('No connection.'); }
+    setWriting(false);
+  };
+
+  return (
+    <section aria-label="What clients ask" className="space-y-3">
+      <div>
+        <h2 className="text-[17px] font-extrabold tracking-tight">What clients ask</h2>
+        <p className="text-[12.5px] text-ink-soft">Counted from what leads write in the chats: which package they ask about, what worries them, and what they say they need. A chat counts once per topic.</p>
+      </div>
+      {err && !d && <p className="rounded-xl bg-white p-4 text-[13px] text-bad">{err}</p>}
+      {!d && !err && <p className="p-3 text-[13px] text-ink-soft">Counting...</p>}
+      {d && (
+        <>
+          <p className="text-[12.5px] text-ink-soft"><b className="text-ink">{d.chats}</b> chats and <b className="text-ink">{d.messages}</b> messages from leads in the last {d.days} days.{d.chats < 10 ? ' That is still a small sample: read the numbers as a first look.' : ''}</p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <TopicList title="Packages asked about" hint="The package or offer a lead names, by number of chats." rows={d.packages} color="#2f9bf0" />
+            <TopicList title="What worries clients" hint="Their concerns, in their own words." rows={d.concerns} color="#e0a23a" />
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <section className="rounded-2xl border border-line bg-white p-4" aria-label="What clients say they need">
+              <h3 className="text-[14px] font-extrabold">What they say they need</h3>
+              <p className="text-[12px] text-ink-soft">The need the bot wrote down from the lead&apos;s own words.</p>
+              {d.needs.length === 0 ? <p className="mt-3 text-[12.5px] text-ink-soft">The bot has not written down a need yet.</p> : (
+                <ul className="mt-2 divide-y divide-[#eef3f8]">
+                  {d.needs.map((n) => <li key={n.need} className="flex items-baseline justify-between gap-3 py-1.5 text-[13px]"><span className="min-w-0 truncate font-semibold">{n.need}</span><span className="shrink-0 text-[12px] text-ink-soft">{n.chats} chat{n.chats === 1 ? '' : 's'}</span></li>)}
+                </ul>
+              )}
+            </section>
+            <section className="rounded-2xl border border-line bg-white p-4" aria-label="Questions the bot could not answer">
+              <h3 className="text-[14px] font-extrabold">Questions the bot could not answer</h3>
+              <p className="text-[12px] text-ink-soft">What is missing from the script: add the answer in AI Kamus.</p>
+              {d.handedOver.length === 0 ? <p className="mt-3 text-[12.5px] text-ink-soft">None in this period.</p> : (
+                <ul className="mt-2 space-y-1.5">
+                  {d.handedOver.map((h, i) => <li key={i} className="text-[12.5px] italic leading-snug">&ldquo;{h.text}&rdquo;</li>)}
+                </ul>
+              )}
+            </section>
+          </div>
+
+          <section className="rounded-2xl border border-line bg-white p-4" aria-label="Summary for the BOD">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-[14px] font-extrabold">Summary for the BOD</h3>
+                <p className="text-[12px] text-ink-soft">Written by the AI from the numbers above only. It is kept for 6 hours.</p>
+              </div>
+              <button onClick={() => void write(!!sum)} disabled={writing || !d.messages} className="rounded-lg bg-brand px-3.5 py-2 text-[13px] font-bold text-white hover:bg-brand-dark disabled:opacity-40">{writing ? 'Writing...' : sum ? 'Write it again' : 'Write the summary'}</button>
+            </div>
+            {sumErr && <p className="mt-2 text-[12.5px] text-bad">{sumErr}</p>}
+            {sum && <p className="mt-3 whitespace-pre-line rounded-xl bg-brand-softer px-4 py-3 text-[13px] leading-relaxed">{sum.text}</p>}
+            {!sum && !sumErr && !d.messages && <p className="mt-2 text-[12.5px] text-ink-soft">There are no chats in this period yet.</p>}
+          </section>
+        </>
       )}
     </section>
   );

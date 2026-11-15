@@ -112,6 +112,15 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     LABELS.push({ id: `lb${Date.now()}`, name, color: String(b?.color || 'blue') });
     return json({ ok: true });
   }
+  if (parts[0] === 'insights') {
+    if (parts[1] === 'summary') return json({ text: '1. Paket Juragan paling banyak ditanya (14 chat), disusul Optimize Shopee (9 chat). Artinya calon client mencari paket awal yang terjangkau.\n2. Kekhawatiran utama: harga dan biaya (19 chat), lalu hasil dan jaminan omzet (11 chat). Tim sebaiknya siapkan contoh hasil client dan perbandingan biaya.\n3. Yang dibutuhkan: iklan Shopee yang tidak boros dan toko yang sedang sepi pembeli.\n4. Tindakan: siapkan satu halaman bukti hasil untuk dikirim bersama deck; ajak konsultasi gratis di balasan pertama.', model: 'demo', days: Number(b?.days) || 30 });
+    const s = Math.max(1, Number(url.searchParams.get('days') || 30) / 30);
+    const k = (key: string, label: string, chats: number, ex: string[]) => ({ key, label, chats: Math.round(chats * s), mentions: Math.round(chats * s * 1.4), examples: ex });
+    return json({ days: Number(url.searchParams.get('days') || 30), chats: Math.round(58 * s), messages: Math.round(240 * s),
+      packages: [k('juragan', 'Paket Juragan', 14, ['kak paket juragan itu include apa aja?']), k('optimize', 'Paket Optimize Shopee', 9, ['optimize shopee itu dikelola full ya kak?']), k('meta', 'Paket Meta Ads', 5, ['ada paket iklan meta ga?']), k('konsul', 'Konsultasi gratis', 4, []), k('deck', 'Deck / company profile', 3, [])],
+      concerns: [k('harga', 'Harga dan biaya', 19, ['harganya berapa kak per bulan?', 'bisa nego ga kak?']), k('hasil', 'Hasil dan jaminan omzet', 11, ['ada jaminan omzet naik ga?']), k('sepi', 'Toko sepi / penjualan turun', 8, ['toko saya sepi pembeli kak']), k('iklan', 'Iklan boros / ROAS rendah', 6, ['iklan saya boros tapi ga laku']), k('percaya', 'Kepercayaan dan legalitas', 4, ['ada testimoni client lain?'])],
+      unmatched: Math.round(60 * s), needs: [{ need: 'Iklan Shopee', chats: 6 }, { need: 'Toko sepi pembeli', chats: 4 }, { need: 'Nego harga', chats: 3 }], handedOver: [{ text: 'bisa buat akun lazada juga ga kak?' }, { text: 'apakah bisa dp dulu lalu cicil 3x' }] });
+  }
   if (parts[0] === 'pipeline') {
     const rows = chats.flatMap((c) => (c.deals || []).map((d) => ({ c, d })));
     const mk = (id: string, client: string, title: string, stage: string, value: number, sales: string, days: number, gid: string | null, extra: object = {}) => ({ id, title, client, stage, value, sales, salesId: `u-${sales.toLowerCase()}`, groupId: gid, daysInStage: days, payment: null, nextMeetingAt: null, ...extra });
