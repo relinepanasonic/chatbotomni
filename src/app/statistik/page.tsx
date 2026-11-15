@@ -3,7 +3,7 @@ import { StatistikApp } from '@/components/StatistikApp';
 import { accessToken, isDemo } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Statistik' };
+export const metadata = { title: 'Dashboard' };
 
 export default async function StatistikPage() {
   const demo = isDemo();

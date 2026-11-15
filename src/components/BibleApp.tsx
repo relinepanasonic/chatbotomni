@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { BibleDoc, BibleDocFull, BibleLogEntry, BibleResponse, BotSettings, UploadTarget } from '@/lib/types';
 import { ageLabel, dateTimeLabel, isStale, sizeLabel } from '@/lib/format';
 import { uploadToSignedUrl } from '@/lib/upload';
+import { PageHeader, SettingTabs } from './PageHeader';
 import { Rail } from './Rail';
 import { ChannelsCard } from './ChannelsCard';
 import { ChannelMark } from './ChannelMark';
@@ -115,14 +116,12 @@ export function BibleApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const stale = active.filter((d) => isStale(d.text_updated_at));
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
       <Rail active="kamus" />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-          <header className="mb-5">
-            <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">AI Kamus {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
-            <p className="mt-1 text-[13.5px] text-ink-soft">What the sales bot and &quot;Suggest reply&quot; know about your packages and prices. Upload the Sales Deck, check what the AI understood, and update it whenever a price changes.</p>
-          </header>
+          <PageHeader title="Setting" demo={demo} description="What the bot knows and how it behaves: the sales deck, prices, the script and its switches." />
+          <SettingTabs active="kamus" />
 
           <div className="mb-4 flex gap-1 rounded-xl bg-[#e3edf7] p-1 text-[13px] font-bold" role="tablist">
             {([['docs', 'Documents'], ['settings', 'Bot script & settings'], ['ask', 'Ask the AI'], ['history', 'History']] as Array<[Tab, string]>).map(([k, label]) => (

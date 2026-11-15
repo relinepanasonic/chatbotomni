@@ -3,7 +3,7 @@ import { SumberApp } from '@/components/SumberApp';
 import { accessToken, isDemo } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Sumber Lead' };
+export const metadata = { title: 'Sumber Leads' };
 
 export default async function SumberPage() {
   const demo = isDemo();

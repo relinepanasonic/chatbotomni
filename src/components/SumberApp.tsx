@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CHANNELS, channelLabel, type Channel, type LeadSource, type SourceReport, type SourcesResponse } from '@/lib/types';
 import { dateTimeLabel } from '@/lib/format';
+import { PageHeader } from './PageHeader';
 import { Rail } from './Rail';
 
 /**
@@ -85,14 +86,11 @@ export function SumberApp({ demo }: { demo: boolean }) {
   const maxLeads = Math.max(1, ...(report?.channels.map((c) => c.leads) ?? [1]));
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-14">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
       <Rail active="sumber" />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-          <header className="mb-5">
-            <h1 className="flex items-center gap-2 text-[22px] font-extrabold tracking-tight">Sumber Lead {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">DEMO</span>}</h1>
-            <p className="mt-1 text-[13.5px] text-ink-soft">Where each lead came from. Every ad opens WhatsApp with its own first message, so the first message tells us which ad brought the lead. It is saved on the chat and on the ERP client.</p>
-          </header>
+          <PageHeader title="Sumber Leads" demo={demo} description="Which ad or channel brought each lead, and how many became clients. Each ad opens WhatsApp with its own first message." />
 
           <div className="mb-4 flex gap-1 rounded-xl bg-[#e3edf7] p-1 text-[13px] font-bold" role="tablist">
             {([['report', 'Report'], ['ads', 'Ads & first messages'], ['unmatched', `No source yet${report ? ` (${report.unmatched.length})` : ''}`]] as Array<[Tab, string]>).map(([k, label]) => (
