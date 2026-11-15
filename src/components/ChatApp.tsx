@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FILTER_STAGES, PAYMENT_CHIP, PAYMENT_LABEL, STAGE_CHIP, STAGE_HINT, stageLabel, stageTone } from '@/lib/pipeline';
 import { channelLabel, type Agent, type ChatFilter, type ChatStatus, type ConversationSummary, type Counts, type LeadSource, type ListResponse, type QuickReply, type SourcesResponse, type Thread, type ThreadMessage, type ChatLabel } from '@/lib/types';
 import { dayLabel, durLabel, timeLabel, shortTime, waitLabel, waitMinutes, waitTone } from '@/lib/format';
 import { askNotifyPermission, beep, notify, notifySupported } from '@/lib/alerts';
@@ -142,6 +143,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [authLost, setAuthLost] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [labelFilter, setLabelFilter] = useState('');
+  const [stageFilter, setStageFilter] = useState('');
   const [appFilter, setAppFilter] = useState<'' | ChatChannel>('');
   const [allLabels, setAllLabels] = useState<ChatLabel[]>([]);
   const [attach, setAttach] = useState<File | null>(null);
@@ -163,11 +165,11 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   useEffect(() => { try { setAlertsOn(localStorage.getItem(ALERT_KEY) === '1'); } catch { /* ignore */ } }, []);
 
   const loadList = useCallback(async () => {
-    const qs = new URLSearchParams({ filter, ...(q.trim() ? { q: q.trim() } : {}), ...(labelFilter ? { label: labelFilter } : {}) });
+    const qs = new URLSearchParams({ filter, ...(q.trim() ? { q: q.trim() } : {}), ...(labelFilter ? { label: labelFilter } : {}), ...(stageFilter ? { stage: stageFilter } : {}) });
     const r = await api<ListResponse>(`/conversations?${qs}`);
     if (!r.ok) { if (r.status === 401 || r.status === 403) setAuthLost(true); else setListError(r.error); return; }
     setAuthLost(false); setListError(null); setList(r.data.conversations); setCounts(r.data.counts); if (r.data.me) setMe(r.data.me); if (r.data.labels) setAllLabels(r.data.labels); setMediaOn(r.data.features?.media === true);
-  }, [filter, q, labelFilter]);
+  }, [filter, q, labelFilter, stageFilter]);
 
   useEffect(() => { const t = setTimeout(loadList, q ? 250 : 0); return () => clearTimeout(t); }, [loadList, q]);
   // Poll only while the tab is on screen, and catch up the moment it comes back.
@@ -337,6 +339,9 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
               <option value="">All apps</option>{(['whatsapp', 'instagram', 'messenger'] as ChatChannel[]).map((k) => <option key={k} value={k}>{CHANNEL_NAME[k]}</option>)}
             </select>
           )}
+          <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} aria-label="Filter by pipeline stage" className="w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-semibold text-ink-soft outline-none focus:border-brand">
+            <option value="">All stages</option>{FILTER_STAGES.map((s) => <option key={s} value={s}>{stageLabel(s)}</option>)}<option value="none">No deal yet</option>
+          </select>
           {allLabels.length > 0 && (
             <select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)} aria-label="Filter by label" className="w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-semibold text-ink-soft outline-none focus:border-brand">
               <option value="">All labels</option>{allLabels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -382,8 +387,10 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                       {c.source && c.source.channel !== 'unknown' && <span className="truncate rounded-full bg-brand-soft px-1.5 py-px text-[10px] font-bold text-brand-dark" title={c.source.label ?? undefined}>{channelLabel(c.source.channel)}</span>}
                       <span className="ml-auto truncate">{c.assignedTo ? `👤 ${c.assignedTo.name}` : 'Unassigned'}</span>
                     </span>
-                    {((c.labels && c.labels.length > 0) || c.nextReminder) && (
+                    {((c.labels && c.labels.length > 0) || c.nextReminder || c.stage) && (
                       <span className="mt-1 flex flex-wrap items-center gap-1">
+                        {c.stage && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${STAGE_CHIP[stageTone(c.stage)]}`} title={STAGE_HINT[c.stage]}>{stageLabel(c.stage)}</span>}
+                        {c.payment && c.stage !== 'Cold Case' && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${PAYMENT_CHIP[c.payment]}`}>{PAYMENT_LABEL[c.payment]}</span>}
                         {c.nextReminder && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${c.nextReminder.state === 'overdue' ? 'bg-bad-soft text-bad' : c.nextReminder.state === 'today' ? 'bg-warn-soft text-warn' : 'bg-[#eef2f6] text-ink-soft'}`} title={c.nextReminder.note ?? undefined}>⏰ {c.nextReminder.state === 'overdue' ? 'Overdue' : c.nextReminder.state === 'today' ? `Today ${clock(c.nextReminder.dueAt)}` : shortTime(c.nextReminder.dueAt)}</span>}
                         {(c.labels || []).slice(0, 3).map((l) => <span key={l.id} className={`rounded-full px-1.5 py-px text-[10px] font-bold ${LABEL_CLASS[l.color] ?? LABEL_CLASS.blue}`}>{l.name}</span>)}
                       </span>

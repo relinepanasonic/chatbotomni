@@ -141,8 +141,9 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     const f = url.searchParams.get('filter') || 'all';
     const q = (url.searchParams.get('q') || '').toLowerCase();
     const label = url.searchParams.get('label') || '';
+    const stageF = url.searchParams.get('stage') || '';
     const open = all.filter((c) => !c.resolved);
-    const list = all.filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : f === 'followup' ? !!c.nextReminder && c.nextReminder.state !== 'later' : true)) && (!label || (c.labels || []).some((l) => l.id === label)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
+    const list = all.map((c) => { const d = chats.find((x) => x.id === c.id)?.deals?.[0]; return { ...c, stage: d?.stage ?? (c.id === 'c1' ? 'Meeting Booked' : c.id === 'c4' ? 'Lead' : null), payment: d?.stage === 'Invoice' ? 'unpaid' as const : null }; }).filter((c) => !stageF || (stageF === 'none' ? !c.stage : c.stage === stageF)).filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : f === 'followup' ? !!c.nextReminder && c.nextReminder.state !== 'later' : true)) && (!label || (c.labels || []).some((l) => l.id === label)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
     const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.length - open.length, followup: open.filter((c) => c.nextReminder && c.nextReminder.state !== 'later').length }, labels: LABELS, features: { media: settings.media_enabled === true } };
     return json(res);
   }

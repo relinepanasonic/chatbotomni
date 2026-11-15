@@ -17,3 +17,11 @@ export const MANUAL = new Set<string>(['Lead', 'Contacted', 'Qualified', 'Warm',
 export const LOCKED = new Set<string>(['Invoice Requested', 'Invoice', 'Deal']);
 /** The three parts of the road, for the colour of the bar. */
 export const stagePart = (s: string): 'lead' | 'meeting' | 'sale' => (['Meeting Offered', 'Meeting Booked', 'Meeting Done'].includes(s) ? 'meeting' : ['Negotiation', 'Invoice Requested', 'Invoice', 'Deal'].includes(s) ? 'sale' : 'lead');
+
+/** The colour family of a stage chip: before the meeting, the meeting, the sale, active, lost. */
+export const stageTone = (s: string): 'lead' | 'meeting' | 'sale' | 'active' | 'lost' => (s === 'Cold Case' ? 'lost' : s === 'Deal' ? 'active' : stagePart(s) === 'meeting' ? 'meeting' : stagePart(s) === 'sale' ? 'sale' : 'lead');
+export const STAGE_CHIP: Record<ReturnType<typeof stageTone>, string> = { lead: 'bg-brand-soft text-brand-dark', meeting: 'bg-[#ece7ff] text-[#5b3fd1]', sale: 'bg-warn-soft text-warn', active: 'bg-ok-soft text-ok', lost: 'bg-[#eef2f6] text-ink-soft' };
+export const PAYMENT_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid', paid: 'Paid', overdue: 'Overdue' } as const;
+export const PAYMENT_CHIP = { unpaid: 'bg-warn-soft text-warn', partial: 'bg-warn-soft text-warn', paid: 'bg-ok-soft text-ok', overdue: 'bg-bad-soft text-bad' } as const;
+/** Every stage a chat can be filtered by, in pipeline order, Lost last. */
+export const FILTER_STAGES = [...PIPELINE, LOST] as const;
