@@ -42,7 +42,7 @@ export interface Thread {
   messages: ThreadMessage[];
   bot: { status: ChatStatus; replies: number; reason: string | null; lead: Lead | null };
   botLog: Array<{ reply: string | null; handoff: boolean; ok: boolean; detail: string | null; created_at: string }>;
-  assignedTo: Person | null; resolved: boolean; ignored?: boolean; ignoredReason?: string | null;
+  assignedTo: Person | null; resolved: boolean; ignored?: boolean; ignoredReason?: string | null; locked?: boolean;
   source: ChatSource | null; sourceId: string | null; firstMessage: string | null;
   client: { id: string; name: string; sales: string | null; serviceEnd: string | null } | null;
   deals: Array<{ id: string; title: string; stage: string; value: number; sales: string | null; salesId?: string | null; payment?: Payment | null; invoice?: { number: string | null; total: number; paid: number; due: string | null } | null }>;

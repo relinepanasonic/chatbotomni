@@ -13,7 +13,8 @@ const ME: Person = { id: 'u-demo', name: 'Demo' };
 
 interface DemoChat { id: string; phone: string; name: string; status: ChatStatus; botReplies: number; lead: { name?: string; store?: string; need?: string } | null; messages: ThreadMessage[]; assignedTo: Person | null; resolved: boolean; src?: { sourceId: string | null; label: string | null; channel: string; by: string | null; first: string }; client?: Thread['client']; deals?: Thread['deals']; labelIds?: string[]; rems?: ReminderItem[] }
 
-const chats: DemoChat[] = [
+// kept on globalThis: in development each API route gets its own copy of this file
+const chats: DemoChat[] = ((globalThis as any).__demoChats ??= [
   { id: 'c1', phone: '6281234500011', name: 'Budi Santoso', status: 'bot', botReplies: 1, assignedTo: null, resolved: false, lead: { name: 'Budi', store: 'Kawat Nyamuk Jaya', need: 'Iklan Shopee' },
     messages: [M('1', 'lead', 'Halo, mau tanya paket kelola toko Shopee', 26), M('2', 'bot', 'Hi kak, Fefe disini. Apa ada yang bisa dibantu kak? Boleh tau toko kakak jualan apa ya?', 25), M('3', 'lead', 'jual kawat nyamuk, tapi lagi sepi pembeli', 19)] },
   { id: 'c2', phone: '6281234500022', name: 'Sari Dewi', status: 'human', botReplies: 2, assignedTo: { id: 'u-rani', name: 'Rani' }, resolved: false, lead: { name: 'Sari', store: 'Sari Fashion', need: 'Nego harga' },
@@ -30,7 +31,7 @@ const chats: DemoChat[] = [
   { id: 'c8', phone: 'fb:6011111111111111', name: 'Agus Pratama', status: 'human', botReplies: 1, assignedTo: { id: 'u-rani', name: 'Rani' }, resolved: false, lead: null,
     messages: [M('1', 'lead', 'Halo, ini harga paketnya berapa?', 1700), M('2', 'bot', 'Hi kak, Fefe disini. Untuk paketnya mulai dari Rp 1,5 jt per bulan kak.', 1699)] },
   { id: 'c6', phone: '6281234500066', name: 'Maya', status: 'off', botReplies: 0, assignedTo: { id: 'u-lucy', name: 'Lucy' }, resolved: true, lead: null, messages: [M('1', 'lead', 'Terima kasih kak', 3000), M('2', 'team', 'Sama-sama kak Maya', 2990, 'Lucy')] },
-];
+]);
 
 const SOURCES: LeadSource[] = [
   { id: 's1', name: 'Meta Ads: Promo Paket Sultan', channel: 'meta_ads', first_message: 'Halo kak, saya mau tanya Paket Sultan dari iklan Instagram', active: true, created_at: ago(60 * 24 * 20), created_by: 'Nico' },
@@ -191,6 +192,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   }
   const leaf = parts[2];
   if (leaf === 'send' && method === 'POST') {
+    if (chat.status === 'bot' || !chat.assignedTo) return json({ error: 'This chat is locked: the bot has it, or nobody owns it yet. Click "I take over" to answer it yourself.' }, 409);
     const text = String(b?.text ?? '').trim();
     if (!text) return json({ error: 'Type a message first.' }, 400);
     chat.messages.push(M(`m${Date.now()}`, 'team', text, 0, ME.name));
