@@ -30,6 +30,7 @@ const TABS: Array<{ key: ChatFilter; label: string; count: (c: Counts) => number
   { key: 'bot', label: 'Bot', count: (c) => c.bot },
   { key: 'followup', label: 'Follow-up', count: (c) => c.followup ?? 0 },
   { key: 'resolved', label: 'Done', count: (c) => c.resolved },
+  { key: 'ignored', label: 'Ignored', count: (c) => c.ignored ?? 0 },
 ];
 const AVATAR = ['#2f9bf0', '#14b8a6', '#8b7cf6', '#f59e0b', '#ef6b8a', '#4f9d69', '#0ea5e9'];
 const avatarColor = (s: string) => AVATAR[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR.length];
@@ -301,6 +302,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   }, [list, selected, thread]);
   const status = thread?.bot.status ?? current?.status ?? 'new';
   const resolved = thread?.resolved ?? current?.resolved ?? false;
+  const ignored = thread?.ignored ?? current?.ignored ?? false;
   const assigned = thread ? thread.assignedTo : current?.assignedTo ?? null;
   // the app the open chat lives in, and how long Meta still lets us reply (Instagram and Messenger: 24 hours after the customer's last message)
   const channel = chatChannel(current?.phone);
@@ -353,7 +355,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
           )}
         </div>
         <div className="flex gap-0.5 overflow-x-auto border-b border-line px-2.5 pb-2" role="tablist">
-          {TABS.map((t) => {
+          {TABS.filter((t) => t.key !== 'ignored' || (counts.ignored ?? 0) > 0 || filter === 'ignored').map((t) => {
             const on = filter === t.key;
             const n = t.count(counts);
             const hot = (t.key === 'unserved' || t.key === 'followup') && n > 0 && !on;
@@ -434,6 +436,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
               {status === 'bot' || status === 'new'
                 ? <button onClick={() => setStatus('human')} className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-brand-dark">Take over</button>
                 : <button onClick={() => setStatus('bot')} className="rounded-lg border border-brand px-3 py-1.5 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft">Give back to bot</button>}
+              <button onClick={() => act('ignore', { ignored: !ignored })} title={ignored ? 'Give this chat back: the bot can answer it again.' : 'Not a lead (a code, an automatic message): the bot stays quiet and it leaves the numbers.'} className="rounded-lg border border-line px-3 py-1.5 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft">{ignored ? 'This is a lead' : 'Not a lead'}</button>
               <button onClick={() => act('resolve', { resolved: !resolved })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold transition ${resolved ? 'border border-line text-ink-soft hover:bg-brand-soft' : 'bg-ok text-white hover:brightness-95'}`}><Icon d={I.check} size={14} />{resolved ? 'Reopen' : 'Resolve'}</button>
             </header>
 

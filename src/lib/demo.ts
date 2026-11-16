@@ -68,6 +68,7 @@ const summary = (c: DemoChat): ConversationSummary => {
   const lastLead = [...list].reverse().find((m) => m.sender === 'lead');
   const parts = c.name.split(/\s+/);
   return {
+    ignored: !!(c as any).ignored,
     id: c.id, phone: c.phone, name: c.name, initials: (parts.length > 1 ? parts[0][0] + parts[1][0] : c.name.slice(0, 2)).toUpperCase(),
     lastText: last.text.length > 90 ? `${last.text.slice(0, 87)}...` : last.text, lastAt: last.at, lastFromMe: last.sender !== 'lead',
     unserved: last.sender === 'lead', waitingSince: last.sender === 'lead' ? waiting : null, status: c.status, lead: c.lead, botReplies: c.botReplies,
@@ -171,9 +172,9 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     const q = (url.searchParams.get('q') || '').toLowerCase();
     const label = url.searchParams.get('label') || '';
     const stageF = url.searchParams.get('stage') || '';
-    const open = all.filter((c) => !c.resolved);
-    const list = all.map((c) => { const d = chats.find((x) => x.id === c.id)?.deals?.[0]; return { ...c, stage: d?.stage ?? (c.id === 'c1' ? 'Meeting Booked' : c.id === 'c4' ? 'Lead' : null), payment: d?.stage === 'Invoice' ? 'unpaid' as const : null }; }).filter((c) => !stageF || (stageF === 'none' ? !c.stage : c.stage === stageF)).filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : f === 'followup' ? !!c.nextReminder && c.nextReminder.state !== 'later' : true)) && (!label || (c.labels || []).some((l) => l.id === label)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
-    const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.length - open.length, followup: open.filter((c) => c.nextReminder && c.nextReminder.state !== 'later').length }, labels: LABELS, features: { media: settings.media_enabled === true } };
+    const open = all.filter((c) => !c.resolved && !c.ignored);
+    const list = all.filter((c) => (f === 'ignored' ? c.ignored : !c.ignored)).map((c) => { const d = chats.find((x) => x.id === c.id)?.deals?.[0]; return { ...c, stage: d?.stage ?? (c.id === 'c1' ? 'Meeting Booked' : c.id === 'c4' ? 'Lead' : null), payment: d?.stage === 'Invoice' ? 'unpaid' as const : null }; }).filter((c) => !stageF || (stageF === 'none' ? !c.stage : c.stage === stageF)).filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : f === 'followup' ? !!c.nextReminder && c.nextReminder.state !== 'later' : true)) && (!label || (c.labels || []).some((l) => l.id === label)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
+    const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.filter((c) => !c.ignored).length - open.length, ignored: all.filter((c) => c.ignored).length, followup: open.filter((c) => c.nextReminder && c.nextReminder.state !== 'later').length }, labels: LABELS, features: { media: settings.media_enabled === true } };
     return json(res);
   }
   const chat = chats.find((c) => c.id === parts[1]);
@@ -233,6 +234,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     chat.src = { sourceId: sid, label: sdef?.name ?? null, channel: sdef?.channel ?? 'unknown', by: sid ? 'Demo' : null, first: chat.src?.first ?? chat.messages.find((m) => m.sender === 'lead')?.text ?? '' };
     return json({ ok: true, source: { id: sid, label: sdef?.name ?? null, channel: sdef?.channel ?? 'unknown' } });
   }
+  if (leaf === 'ignore' && method === 'POST') { (chat as any).ignored = b?.ignored !== false; if ((chat as any).ignored) { chat.resolved = true; chat.status = 'off' as any; } else { chat.resolved = false; chat.status = 'bot'; } return json({ ok: true }); }
   if (leaf === 'resolve' && method === 'POST') { chat.resolved = b?.resolved !== false; return json({ ok: true }); }
   if (leaf === 'notes' && method === 'POST') {
     const text = String(b?.text ?? '').trim();
