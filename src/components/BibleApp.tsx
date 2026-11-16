@@ -452,7 +452,7 @@ function PipelineAuto({ s, canEdit, busy, onSave }: { s: BotSettings; canEdit: b
         <div className="max-w-2xl">
           <h2 className="text-[14.5px] font-extrabold">Put leads in the pipeline automatically</h2>
           <p className="text-[12.5px] text-ink-soft">The bot adds a lead to the ERP pipeline once it knows the name or the store, then moves it forward from what the chat shows: a reply (Contacted), name and store (Qualified), the words below (Warm, Negotiation, Lost), free times sent (Meeting Offered). A booking and a finished meeting move it too. It never moves a lead back, and never touches a deal that is with Accounting. Every move leaves a note in the chat.</p>
-          {!s.stage_auto ? null : <p className="mt-1 text-[12px] text-ink-soft">New leads belong to the chat&apos;s salesperson, or the one chosen in Jadwal. Without either, no lead is made.</p>}
+          {!s.stage_auto ? null : <p className="mt-1 text-[12px] text-ink-soft">New leads belong to the chat&apos;s salesperson, or the one chosen in Jadwal. With neither, the lead is still made, without an owner: a person takes it from the Pipeline.</p>}
         </div>
         <label className={`flex items-center gap-2 text-[13px] font-bold ${canEdit ? 'cursor-pointer' : 'opacity-60'}`}>
           <input type="checkbox" role="switch" aria-label="Pipeline automation" className="h-5 w-5 accent-[#2f9bf0]" checked={!!s.stage_auto} disabled={!canEdit || busy} onChange={(e) => void onSave({ stage_auto: e.target.checked })} />{s.stage_auto ? 'ON' : 'OFF'}
