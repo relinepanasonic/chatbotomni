@@ -4,13 +4,13 @@
  */
 export const PIPELINE = ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal'] as const;
 export const LOST = 'Cold Case';
-const LABEL: Record<string, string> = { Lead: 'New Lead', Invoice: 'Invoice Sent', Deal: 'Active Client', 'Cold Case': 'Lost' };
+const LABEL: Record<string, string> = { Lead: 'New Lead', Invoice: 'Invoice Sent', Deal: 'Active Client', 'Cold Case': 'Cold Leads' };
 export const stageLabel = (s: string) => LABEL[s] || s;
 export const STAGE_HINT: Record<string, string> = {
   Lead: 'First message, nothing known yet', Contacted: 'We answered and the lead replied', Qualified: 'We know the name, the store and the need',
   Warm: 'Asked about price, packages or the deck', 'Meeting Offered': 'Free times sent, waiting for a pick', 'Meeting Booked': 'A consultation is booked',
   'Meeting Done': 'The consultation happened', Negotiation: 'Proposal and price, then the ACC in the ERP', 'Invoice Requested': 'Waiting for Accounting',
-  Invoice: 'Invoice made, waiting for payment', Deal: 'Paid: the project starts', 'Cold Case': 'No answer, or said no',
+  Invoice: 'Invoice made, waiting for payment', Deal: 'Paid: the project starts', 'Cold Case': 'Quiet after 3 follow-ups, or not now',
 };
 /** Stages a person may pick. The three after Negotiation are set by the invoice request, the invoice and the payment in the ERP. */
 export const MANUAL = new Set<string>(['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation']);

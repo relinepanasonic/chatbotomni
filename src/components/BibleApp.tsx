@@ -450,7 +450,7 @@ function PipelineAuto({ s, canEdit, busy, onSave }: { s: BotSettings; canEdit: b
   const groups = [
     { key: 'warm', stage: 'Warm', hint: 'The lead asks about price, packages or the deck.' },
     { key: 'negotiation', stage: 'Negotiation', hint: 'The lead is ready to buy or asks to negotiate.' },
-    { key: 'lost', stage: 'Lost', hint: 'The lead says no or not now.' },
+    { key: 'lost', stage: 'Cold Leads', hint: 'The lead says not now. (Fefe also moves a lead here after 3 follow-ups with no answer.)' },
   ] as const;
   return (
     <div className="rounded-2xl border border-line bg-white p-4">

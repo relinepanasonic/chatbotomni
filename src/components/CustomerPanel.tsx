@@ -165,7 +165,7 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
                 <p className="text-[11.5px] text-ink-soft">{d.sales ? `Owned by ${d.sales}` : 'No owner'}{!mine ? ', so only they can move it' : ''}</p>
                 {cold ? (
                   <div className="mt-2 flex items-center justify-between rounded-lg bg-[#eef2f6] px-3 py-2 text-[12.5px]">
-                    <span className="font-bold text-ink-soft">Lost</span>
+                    <span className="font-bold text-ink-soft">Cold Leads</span>
                     {mine && <button className={btnText} onClick={() => void moveStage(d.id, 'Lead')}>Bring back as new lead</button>}
                   </div>
                 ) : (
@@ -185,7 +185,7 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
                           className="shrink-0 rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-bold text-brand-dark outline-none focus:border-brand">
                           <option value="">Move to...</option>
                           {PIPELINE.filter((s) => MANUAL.has(s) && s !== d.stage).map((s) => <option key={s} value={s}>{stageLabel(s)}</option>)}
-                          <option value={LOST}>Lost</option>
+                          <option value={LOST}>Cold Leads</option>
                         </select>
                       )}
                     </div>
