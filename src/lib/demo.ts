@@ -112,6 +112,10 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     LABELS.push({ id: `lb${Date.now()}`, name, color: String(b?.color || 'blue') });
     return json({ ok: true });
   }
+  if (parts[0] === 'team') {
+    if (method === 'POST') { const keep = new Set((b?.people || []).map((p: any) => p.id)); for (const p of demoTeam) p.inTeam = keep.has(p.id); return json({ ok: true }); }
+    return json({ people: demoTeam });
+  }
   if (parts[0] === 'me') return json({ id: ME.id, name: 'Demo (founder)', role: 'founder', isBod: true });
   if (parts[0] === 'insights') {
     if (parts[1] === 'summary') return json({ executive: 'Selama 30 hari terakhir ada 58 calon client yang menulis dengan 240 pesan. Paket Juragan paling banyak ditanya (14 chat), disusul Optimize Shopee (9 chat). Kekhawatiran terbesar adalah harga dan biaya (19 chat), lalu hasil dan jaminan omzet (11 chat). Kebutuhan yang paling sering disebut adalah iklan Shopee yang tidak boros dan toko yang sepi pembeli.', insights: ['Banyak calon client menanyakan harga sebelum paham paket yang cocok.', 'Kekhawatiran soal hasil muncul di 11 chat: client ingin bukti.'], actions: [{ action: 'Siapkan perbandingan paket yang jelas untuk balasan pertama.', pic: 'Sales', why: 'Harga ditanyakan di 19 chat' }, { action: 'Kumpulkan contoh hasil client untuk dikirim bersama deck.', pic: 'Tim Konten', why: 'Jaminan omzet kekhawatiran kedua' }], model: 'demo', ai: true, days: Number(b?.days) || 30 });
@@ -419,6 +423,7 @@ function demoStats(days: number) {
 // ---------------------------------------------------------------- free consultations (demo)
 const meetSettings: MeetSettings = { enabled: true, days: [1, 2, 3, 4, 5], from: '10:00', to: '17:00', minutes: 30, noticeHours: 3, daysAhead: 7, ownerId: 'u-rani', ownerName: 'Rani' };
 // kept on globalThis: in development each API route gets its own copy of this file
+const demoTeam = [{ id: 'u-rani', name: 'Rani', role: 'sales', inTeam: true }, { id: 'u-lucy', name: 'Lucy', role: 'superadmin', inTeam: false }, { id: 'u-herlan', name: 'Herlan', role: 'superadmin', inTeam: true }, { id: 'u-velly', name: 'Velly', role: 'advertiser', inTeam: true }];
 const boardStage: Record<string, string> = ((globalThis as any).__demoBoardStage ??= {});
 const atWib = (daysFromNow: number, hhmm: string) => { const d = new Date(Date.now() + daysFromNow * 86400000 + 7 * 3600000); return new Date(`${d.toISOString().slice(0, 10)}T${hhmm}:00+07:00`).toISOString(); };
 const demoMeetings: Meeting[] = [
