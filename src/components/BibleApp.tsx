@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Agent, BibleDoc, BibleDocFull, BibleLogEntry, BibleResponse, BotSettings, UploadTarget } from '@/lib/types';
+import { useMe } from '@/lib/useMe';
 import { ageLabel, dateTimeLabel, isStale, sizeLabel } from '@/lib/format';
 import { uploadToSignedUrl } from '@/lib/upload';
 import { PageHeader, SettingTabs } from './PageHeader';
@@ -300,6 +301,7 @@ function SettingsTab({ initial, canEdit, say }: { initial: BotSettings; canEdit:
           <input type="checkbox" checked={!!s.media_enabled} disabled={!canEdit || busy} onChange={async (e) => { const on = e.target.checked; setS({ ...s, media_enabled: on }); if (!(await save({ media_enabled: on }, on ? 'Photos are unlocked in the inbox.' : 'Photos are locked in the inbox.'))) setS((x) => ({ ...x, media_enabled: !on })); }} className="h-5 w-5 accent-[#2f9bf0]" />{s.media_enabled ? 'ON' : 'OFF'}
         </label>
       </div>
+      <SalesTeam />
       <PipelineAuto s={s} canEdit={canEdit} busy={busy} onSave={async (patch) => { if (await save(patch, 'Pipeline automation saved.')) setS((x) => ({ ...x, ...patch })); }} />
       <DeckLink value={s.deck_url ?? ''} canEdit={canEdit} busy={busy} onSave={async (v) => { if (await save({ deck_url: v }, v ? 'The deck link is saved. The bot sends it when a lead asks for the deck.' : 'The deck link is removed.')) setS((x) => ({ ...x, deck_url: v })); }} />
       <div className="grid gap-3 rounded-2xl border border-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -488,6 +490,42 @@ function PipelineAuto({ s, canEdit, busy, onSave }: { s: BotSettings; canEdit: b
         ))}
       </div>
       {canEdit && <button type="button" disabled={busy || !dirty} onClick={() => void onSave({ stage_words: w })} className="mt-3 rounded-lg bg-brand px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-40">Save words</button>}
+    </div>
+  );
+}
+
+/** Who the salespeople are: only they can be given chats and leads, and they can open this dashboard as a salesperson. The BOD sets it. */
+function SalesTeam() {
+  const me = useMe();
+  const [people, setPeople] = useState<Array<{ id: string; name: string; role: string; inTeam: boolean }> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const load = useCallback(async () => { const r = await api<{ people: Array<{ id: string; name: string; role: string; inTeam: boolean }> }>('/team'); if (r.ok) setPeople(r.data.people); }, []);
+  useEffect(() => { if (me?.isBod) void load(); }, [me?.isBod, load]);
+  if (!me?.isBod || !people) return null;
+  const toggle = async (id: string, on: boolean) => {
+    const next = people.map((p) => (p.id === id ? { ...p, inTeam: on } : p));
+    setPeople(next); setBusy(true); setMsg(null);
+    const r = await api<{ ok: true }>('/team', { method: 'POST', body: JSON.stringify({ people: next.filter((p) => p.inTeam).map((p) => ({ id: p.id, name: p.name })) }) });
+    setBusy(false);
+    if (!r.ok) { setMsg({ ok: false, text: r.error }); void load(); } else setMsg({ ok: true, text: 'The sales team is saved.' });
+  };
+  const ROLE: Record<string, string> = { superadmin: 'Superadmin', admin: 'Admin', sales: 'Sales', advertiser: 'Advertiser', accounting: 'Accounting', founder: 'Founder' };
+  return (
+    <div className="rounded-2xl border border-line bg-white p-4">
+      <h2 className="text-[14.5px] font-extrabold">Sales team</h2>
+      <p className="max-w-2xl text-[12.5px] text-ink-soft">Tick the people who sell. Only they can be given chats and leads (the Assign list, the Salesperson in Jadwal, and the lead sharing below), and they can open this dashboard as a salesperson, even if their ERP role is something else. Leave everyone unticked to allow everyone with a chat role.</p>
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {people.map((p) => (
+          <li key={p.id}>
+            <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-[13px] font-semibold ${p.inTeam ? 'border-brand bg-brand-softer text-brand-dark' : 'border-line bg-white text-ink-soft'}`}>
+              <input type="checkbox" className="h-4 w-4 accent-[#2f9bf0]" checked={p.inTeam} disabled={busy} onChange={(e) => void toggle(p.id, e.target.checked)} />
+              {p.name}<span className="text-[11px] font-normal text-ink-soft">{ROLE[p.role] || p.role}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {msg && <p role="status" className={`mt-2 text-[12.5px] ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>}
     </div>
   );
 }
