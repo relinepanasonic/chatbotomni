@@ -65,7 +65,7 @@ export interface BibleDoc {
   uploaded_by: string | null; created_at: string; text_updated_at: string; text_updated_by: string | null; chars: number;
 }
 export interface BibleDocFull extends BibleDoc { text: string }
-export interface BotSettings { enabled: boolean; media_enabled?: boolean; persona_name: string; company_name: string; hours_from: string; hours_to: string; max_replies: number; knowledge: string; social_script?: string; deck_url?: string | null; stage_auto?: boolean; stage_words?: { warm: string; negotiation: string; lost: string } }
+export interface BotSettings { enabled: boolean; media_enabled?: boolean; persona_name: string; company_name: string; hours_from: string; hours_to: string; max_replies: number; knowledge: string; social_script?: string; deck_url?: string | null; stage_auto?: boolean; stage_words?: { warm: string; negotiation: string; lost: string }; stage_owners?: Array<{ id: string; name: string }> }
 export interface BibleLogEntry { id: string; doc_id: string | null; doc_title: string; action: string; by_name: string | null; detail: string | null; created_at: string }
 export interface BibleResponse { docs: BibleDoc[]; log: BibleLogEntry[]; settings: BotSettings; canEdit: boolean }
 export interface UploadTarget { ok: true; path: string; token: string; bucket: string }
