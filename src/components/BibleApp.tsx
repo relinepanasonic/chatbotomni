@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { BibleDoc, BibleDocFull, BibleLogEntry, BibleResponse, BotSettings, UploadTarget } from '@/lib/types';
+import type { Agent, BibleDoc, BibleDocFull, BibleLogEntry, BibleResponse, BotSettings, UploadTarget } from '@/lib/types';
 import { ageLabel, dateTimeLabel, isStale, sizeLabel } from '@/lib/format';
 import { uploadToSignedUrl } from '@/lib/upload';
 import { PageHeader, SettingTabs } from './PageHeader';
@@ -438,6 +438,10 @@ function DeckLink({ value, canEdit, busy, onSave }: { value: string; canEdit: bo
 
 /** The AI puts leads in the ERP pipeline: the switch, and the trigger words that move a lead. */
 function PipelineAuto({ s, canEdit, busy, onSave }: { s: BotSettings; canEdit: boolean; busy: boolean; onSave: (patch: Partial<BotSettings>) => Promise<void> }) {
+  const [team, setTeam] = useState<Agent[]>([]);
+  useEffect(() => { void api<{ agents: Agent[] }>('/agents').then((r) => r.ok && setTeam(r.data.agents)); }, []);
+  const chosen = s.stage_owners ?? [];
+  const toggle = (a: Agent, on: boolean) => void onSave({ stage_owners: on ? [...chosen, { id: a.id, name: a.name }] : chosen.filter((o) => o.id !== a.id) });
   const [w, setW] = useState(s.stage_words ?? { warm: '', negotiation: '', lost: '' });
   useEffect(() => setW(s.stage_words ?? { warm: '', negotiation: '', lost: '' }), [s.stage_words]);
   const dirty = JSON.stringify(w) !== JSON.stringify(s.stage_words ?? { warm: '', negotiation: '', lost: '' });
@@ -457,6 +461,23 @@ function PipelineAuto({ s, canEdit, busy, onSave }: { s: BotSettings; canEdit: b
         <label className={`flex items-center gap-2 text-[13px] font-bold ${canEdit ? 'cursor-pointer' : 'opacity-60'}`}>
           <input type="checkbox" role="switch" aria-label="Pipeline automation" className="h-5 w-5 accent-[#2f9bf0]" checked={!!s.stage_auto} disabled={!canEdit || busy} onChange={(e) => void onSave({ stage_auto: e.target.checked })} />{s.stage_auto ? 'ON' : 'OFF'}
         </label>
+      </div>
+      <div className="mt-4 rounded-xl bg-brand-softer p-3.5">
+        <p className="text-[13px] font-extrabold">Share new leads between</p>
+        <p className="text-[12px] text-ink-soft">Each new lead goes to the person who has the fewest new leads in the last 30 days, so everyone gets the same number. A chat that already has a salesperson keeps them. Nobody ticked: the lead has no owner and a person takes it.</p>
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {team.length === 0 && <li className="text-[12px] text-ink-soft">Loading the team...</li>}
+          {team.map((a) => {
+            const on = chosen.some((o) => o.id === a.id);
+            return (
+              <li key={a.id}>
+                <label className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[13px] font-semibold ${on ? 'border-brand bg-white text-brand-dark' : 'border-line bg-white text-ink-soft'} ${canEdit ? 'cursor-pointer' : 'opacity-60'}`}>
+                  <input type="checkbox" className="h-4 w-4 accent-[#2f9bf0]" checked={on} disabled={!canEdit || busy} onChange={(e) => toggle(a, e.target.checked)} />{a.name}
+                </label>
+              </li>
+            );
+          })}
+        </ul>
       </div>
       <div className="mt-3 grid gap-3 lg:grid-cols-3">
         {groups.map((g) => (
