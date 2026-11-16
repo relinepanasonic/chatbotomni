@@ -30,6 +30,7 @@ const TABS: Array<{ key: ChatFilter; label: string; count: (c: Counts) => number
   { key: 'bot', label: 'Bot', count: (c) => c.bot },
   { key: 'followup', label: 'Follow-up', count: (c) => c.followup ?? 0 },
   { key: 'resolved', label: 'Done', count: (c) => c.resolved },
+  { key: 'ignored', label: 'Ignored', count: (c) => c.ignored ?? 0 },
 ];
 const AVATAR = ['#2f9bf0', '#14b8a6', '#8b7cf6', '#f59e0b', '#ef6b8a', '#4f9d69', '#0ea5e9'];
 const avatarColor = (s: string) => AVATAR[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR.length];
@@ -301,12 +302,16 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   }, [list, selected, thread]);
   const status = thread?.bot.status ?? current?.status ?? 'new';
   const resolved = thread?.resolved ?? current?.resolved ?? false;
+  const ignored = thread?.ignored ?? current?.ignored ?? false;
   const assigned = thread ? thread.assignedTo : current?.assignedTo ?? null;
   // the app the open chat lives in, and how long Meta still lets us reply (Instagram and Messenger: 24 hours after the customer's last message)
   const channel = chatChannel(current?.phone);
   const lastLeadAt = useMemo(() => [...(thread?.messages ?? [])].reverse().find((m) => m.sender === 'lead')?.at ?? null, [thread]);
   const minutesLeft = thread && thread.id === selected ? replyMinutesLeft(channel, lastLeadAt, now) : null;
   const windowClosed = minutesLeft === 0;
+  // locked for typing while the bot has the chat, or nobody owns it: "I take over" opens it, "Bot Auto" locks it again (so nobody answers a chat by accident)
+  const locked = status === 'bot' || !assigned;
+  const typingLocked = mode === 'reply' && locked;
   const hasOtherApps = useMemo(() => (list ?? []).some((c) => chatChannel(c.phone) !== 'whatsapp'), [list]);
   const shown = useMemo(() => (appFilter ? list?.filter((c) => chatChannel(c.phone) === appFilter) ?? null : list), [list, appFilter]);
   const groups = useMemo(() => {
@@ -353,7 +358,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
           )}
         </div>
         <div className="flex gap-0.5 overflow-x-auto border-b border-line px-2.5 pb-2" role="tablist">
-          {TABS.map((t) => {
+          {TABS.filter((t) => t.key !== 'ignored' || (counts.ignored ?? 0) > 0 || filter === 'ignored').map((t) => {
             const on = filter === t.key;
             const n = t.count(counts);
             const hot = (t.key === 'unserved' || t.key === 'followup') && n > 0 && !on;
@@ -431,9 +436,10 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   {agents.map((a) => <option key={a.id} value={a.id}>{a.name}{me?.id === a.id ? ' (me)' : ''}</option>)}
                 </select>
               </label>
-              {status === 'bot' || status === 'new'
-                ? <button onClick={() => setStatus('human')} className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-brand-dark">Take over</button>
-                : <button onClick={() => setStatus('bot')} className="rounded-lg border border-brand px-3 py-1.5 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft">Give back to bot</button>}
+              {locked
+                ? <button onClick={() => setStatus('human')} className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-brand-dark">I take over</button>
+                : <button onClick={() => setStatus('bot')} title="Give the chat back to the bot. It locks again until someone clicks I take over." className="rounded-lg border border-brand px-3 py-1.5 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft">Bot Auto</button>}
+              <button onClick={() => act('ignore', { ignored: !ignored })} title={ignored ? 'Give this chat back: the bot can answer it again.' : 'Not a lead (a code, an automatic message): the bot stays quiet and it leaves the numbers.'} className="rounded-lg border border-line px-3 py-1.5 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft">{ignored ? 'This is a lead' : 'Not a lead'}</button>
               <button onClick={() => act('resolve', { resolved: !resolved })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold transition ${resolved ? 'border border-line text-ink-soft hover:bg-brand-soft' : 'bg-ok text-white hover:brightness-95'}`}><Icon d={I.check} size={14} />{resolved ? 'Reopen' : 'Resolve'}</button>
             </header>
 
@@ -462,6 +468,12 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   ))}
                 </ul>
               )}
+              {typingLocked && (
+                <div role="status" className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-brand-soft px-3 py-2 text-[12.5px] text-brand-dark">
+                  <span className="flex items-center gap-1.5"><Icon d={I.lock} size={14} />{status === 'bot' ? 'Fefe (the bot) is answering this chat. It is locked so nobody replies by accident.' : 'Nobody owns this chat yet. It is locked until someone takes it.'}</span>
+                  <button onClick={() => setStatus('human')} className="rounded-lg bg-brand px-3 py-1 text-[12px] font-bold text-white transition hover:bg-brand-dark">I take over</button>
+                </div>
+              )}
               {mode === 'reply' && channel !== 'whatsapp' && minutesLeft !== null && (
                 windowClosed
                   ? <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-bad-soft px-3 py-1.5 text-[12px] text-bad"><Icon d={I.lock} size={14} />{CHANNEL_NAME[channel]} only allows a reply within 24 hours of the customer&apos;s last message, and that time is over. When they write again you can reply. You can still add a note for the team.</p>
@@ -475,7 +487,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                 </div>
                 {mode === 'reply' && (
                   <>
-                    <button onClick={suggest} disabled={suggesting} className="flex items-center gap-1.5 rounded-lg border border-brand/40 px-2.5 py-1 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft disabled:opacity-50" title="The AI writes a draft from the bot's knowledge. Nothing is sent."><Icon d={I.spark} size={14} />{suggesting ? 'Writing...' : 'Suggest reply'}</button>
+                    <button onClick={suggest} disabled={suggesting || locked} className="flex items-center gap-1.5 rounded-lg border border-brand/40 px-2.5 py-1 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft disabled:opacity-50" title="The AI writes a draft from the bot's knowledge. Nothing is sent."><Icon d={I.spark} size={14} />{suggesting ? 'Writing...' : 'Suggest reply'}</button>
                     <button onClick={() => setQrOpen(true)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft" title="Type / in the box to use a quick reply"><Icon d={I.bolt} size={14} />Quick replies</button>
                     <button onClick={() => (channel !== 'whatsapp' ? setNotice({ kind: 'info', text: `Sending photos to ${CHANNEL_NAME[channel]} is not ready yet. Send text, or share a link.` }) : mediaOn ? fileRef.current?.click() : setNotice({ kind: 'info', text: "Sending photos is locked: the sales number's Fonnte package does not include attachments yet. After upgrading, an admin can switch it on in AI Kamus > Bot script & settings." }))}
                       aria-disabled={!mediaOn} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition ${mediaOn ? 'text-ink-soft hover:bg-brand-soft' : 'cursor-not-allowed text-[#a9b8c7]'}`}
@@ -494,7 +506,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                 </div>
               )}
               <div className="flex items-end gap-2">
-                <textarea ref={boxRef} value={text} onChange={(e) => setText(e.target.value)} disabled={mode === 'reply' && windowClosed} rows={mode === 'reply' && text.length > 120 ? 4 : 1} maxLength={mode === 'note' ? 2000 : 1500} aria-label={mode === 'note' ? 'Type an internal note' : 'Type a message'}
+                <textarea ref={boxRef} value={text} onChange={(e) => setText(e.target.value)} disabled={typingLocked || (mode === 'reply' && windowClosed)} rows={mode === 'reply' && text.length > 120 ? 4 : 1} maxLength={mode === 'note' ? 2000 : 1500} aria-label={mode === 'note' ? 'Type an internal note' : 'Type a message'}
                   onKeyDown={(e) => {
                     if (slashMatches.length > 0) {
                       if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIdx((i) => (i + 1) % slashMatches.length); return; }
@@ -504,9 +516,9 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                     }
                     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); }
                   }}
-                  placeholder={mode === 'note' ? 'Write a private note for the team...' : windowClosed ? 'The reply window is closed: switch to Note to write for the team' : 'Type a message, or / for a quick reply (Enter to send, Shift+Enter for a new line)'}
+                  placeholder={mode === 'note' ? 'Write a private note for the team...' : typingLocked ? 'Locked: click I take over to answer this chat' : windowClosed ? 'The reply window is closed: switch to Note to write for the team' : 'Type a message, or / for a quick reply (Enter to send, Shift+Enter for a new line)'}
                   className={`max-h-40 min-h-[42px] flex-1 resize-none rounded-xl border px-3.5 py-2.5 text-[13.5px] outline-none placeholder:text-[#8aa0b6] focus:bg-white ${mode === 'note' ? 'border-[#f2d9a0] bg-[#fff6e0] focus:border-warn' : 'border-line bg-brand-softer focus:border-brand'}`} />
-                <button onClick={send} disabled={sending || (mode === 'reply' && windowClosed) || (!text.trim() && !(attach && mode === 'reply'))} aria-label={mode === 'note' ? 'Save note' : 'Send message'} className={`flex h-[42px] shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-40 ${mode === 'note' ? 'w-auto bg-warn px-3 text-[12.5px] font-bold hover:brightness-95' : 'w-[42px] bg-brand hover:bg-brand-dark'}`}>{mode === 'note' ? 'Add note' : <Icon d={I.send} size={18} />}</button>
+                <button onClick={send} disabled={sending || typingLocked || (mode === 'reply' && windowClosed) || (!text.trim() && !(attach && mode === 'reply'))} aria-label={mode === 'note' ? 'Save note' : 'Send message'} className={`flex h-[42px] shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-40 ${mode === 'note' ? 'w-auto bg-warn px-3 text-[12.5px] font-bold hover:brightness-95' : 'w-[42px] bg-brand hover:bg-brand-dark'}`}>{mode === 'note' ? 'Add note' : <Icon d={I.send} size={18} />}</button>
               </div>
               <p className="mt-1.5 text-[10.5px] text-ink-soft">{mode === 'note' ? 'Notes are only for the team. The lead never sees them.' : `Sent from ${channel === 'whatsapp' ? 'the sales number' : channel === 'instagram' ? 'your Instagram account' : 'your Facebook Page'}.`}</p>
             </footer>

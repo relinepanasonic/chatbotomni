@@ -13,7 +13,8 @@ const ME: Person = { id: 'u-demo', name: 'Demo' };
 
 interface DemoChat { id: string; phone: string; name: string; status: ChatStatus; botReplies: number; lead: { name?: string; store?: string; need?: string } | null; messages: ThreadMessage[]; assignedTo: Person | null; resolved: boolean; src?: { sourceId: string | null; label: string | null; channel: string; by: string | null; first: string }; client?: Thread['client']; deals?: Thread['deals']; labelIds?: string[]; rems?: ReminderItem[] }
 
-const chats: DemoChat[] = [
+// kept on globalThis: in development each API route gets its own copy of this file
+const chats: DemoChat[] = ((globalThis as any).__demoChats ??= [
   { id: 'c1', phone: '6281234500011', name: 'Budi Santoso', status: 'bot', botReplies: 1, assignedTo: null, resolved: false, lead: { name: 'Budi', store: 'Kawat Nyamuk Jaya', need: 'Iklan Shopee' },
     messages: [M('1', 'lead', 'Halo, mau tanya paket kelola toko Shopee', 26), M('2', 'bot', 'Hi kak, Fefe disini. Apa ada yang bisa dibantu kak? Boleh tau toko kakak jualan apa ya?', 25), M('3', 'lead', 'jual kawat nyamuk, tapi lagi sepi pembeli', 19)] },
   { id: 'c2', phone: '6281234500022', name: 'Sari Dewi', status: 'human', botReplies: 2, assignedTo: { id: 'u-rani', name: 'Rani' }, resolved: false, lead: { name: 'Sari', store: 'Sari Fashion', need: 'Nego harga' },
@@ -30,7 +31,7 @@ const chats: DemoChat[] = [
   { id: 'c8', phone: 'fb:6011111111111111', name: 'Agus Pratama', status: 'human', botReplies: 1, assignedTo: { id: 'u-rani', name: 'Rani' }, resolved: false, lead: null,
     messages: [M('1', 'lead', 'Halo, ini harga paketnya berapa?', 1700), M('2', 'bot', 'Hi kak, Fefe disini. Untuk paketnya mulai dari Rp 1,5 jt per bulan kak.', 1699)] },
   { id: 'c6', phone: '6281234500066', name: 'Maya', status: 'off', botReplies: 0, assignedTo: { id: 'u-lucy', name: 'Lucy' }, resolved: true, lead: null, messages: [M('1', 'lead', 'Terima kasih kak', 3000), M('2', 'team', 'Sama-sama kak Maya', 2990, 'Lucy')] },
-];
+]);
 
 const SOURCES: LeadSource[] = [
   { id: 's1', name: 'Meta Ads: Promo Paket Sultan', channel: 'meta_ads', first_message: 'Halo kak, saya mau tanya Paket Sultan dari iklan Instagram', active: true, created_at: ago(60 * 24 * 20), created_by: 'Nico' },
@@ -68,6 +69,7 @@ const summary = (c: DemoChat): ConversationSummary => {
   const lastLead = [...list].reverse().find((m) => m.sender === 'lead');
   const parts = c.name.split(/\s+/);
   return {
+    ignored: !!(c as any).ignored,
     id: c.id, phone: c.phone, name: c.name, initials: (parts.length > 1 ? parts[0][0] + parts[1][0] : c.name.slice(0, 2)).toUpperCase(),
     lastText: last.text.length > 90 ? `${last.text.slice(0, 87)}...` : last.text, lastAt: last.at, lastFromMe: last.sender !== 'lead',
     unserved: last.sender === 'lead', waitingSince: last.sender === 'lead' ? waiting : null, status: c.status, lead: c.lead, botReplies: c.botReplies,
@@ -171,9 +173,9 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     const q = (url.searchParams.get('q') || '').toLowerCase();
     const label = url.searchParams.get('label') || '';
     const stageF = url.searchParams.get('stage') || '';
-    const open = all.filter((c) => !c.resolved);
-    const list = all.map((c) => { const d = chats.find((x) => x.id === c.id)?.deals?.[0]; return { ...c, stage: d?.stage ?? (c.id === 'c1' ? 'Meeting Booked' : c.id === 'c4' ? 'Lead' : null), payment: d?.stage === 'Invoice' ? 'unpaid' as const : null }; }).filter((c) => !stageF || (stageF === 'none' ? !c.stage : c.stage === stageF)).filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : f === 'followup' ? !!c.nextReminder && c.nextReminder.state !== 'later' : true)) && (!label || (c.labels || []).some((l) => l.id === label)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
-    const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.length - open.length, followup: open.filter((c) => c.nextReminder && c.nextReminder.state !== 'later').length }, labels: LABELS, features: { media: settings.media_enabled === true } };
+    const open = all.filter((c) => !c.resolved && !c.ignored);
+    const list = all.filter((c) => (f === 'ignored' ? c.ignored : !c.ignored)).map((c) => { const d = chats.find((x) => x.id === c.id)?.deals?.[0]; return { ...c, stage: d?.stage ?? (c.id === 'c1' ? 'Meeting Booked' : c.id === 'c4' ? 'Lead' : null), payment: d?.stage === 'Invoice' ? 'unpaid' as const : null }; }).filter((c) => !stageF || (stageF === 'none' ? !c.stage : c.stage === stageF)).filter((c) => (f === 'resolved' ? c.resolved : !c.resolved && (f === 'mine' ? c.assignedTo?.id === ME.id : f === 'unserved' ? c.unserved : f === 'bot' ? c.status === 'bot' : f === 'followup' ? !!c.nextReminder && c.nextReminder.state !== 'later' : true)) && (!label || (c.labels || []).some((l) => l.id === label)) && (!q || [c.name, c.phone, c.lastText, c.assignedTo?.name].some((v) => String(v || '').toLowerCase().includes(q))));
+    const res: ListResponse = { me: { ...ME, role: 'sales' }, conversations: list, counts: { all: open.length, mine: open.filter((c) => c.assignedTo?.id === ME.id).length, unserved: open.filter((c) => c.unserved).length, bot: open.filter((c) => c.status === 'bot').length, human: open.filter((c) => c.status === 'human').length, resolved: all.filter((c) => !c.ignored).length - open.length, ignored: all.filter((c) => c.ignored).length, followup: open.filter((c) => c.nextReminder && c.nextReminder.state !== 'later').length }, labels: LABELS, features: { media: settings.media_enabled === true } };
     return json(res);
   }
   const chat = chats.find((c) => c.id === parts[1]);
@@ -190,6 +192,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
   }
   const leaf = parts[2];
   if (leaf === 'send' && method === 'POST') {
+    if (chat.status === 'bot' || !chat.assignedTo) return json({ error: 'This chat is locked: the bot has it, or nobody owns it yet. Click "I take over" to answer it yourself.' }, 409);
     const text = String(b?.text ?? '').trim();
     if (!text) return json({ error: 'Type a message first.' }, 400);
     chat.messages.push(M(`m${Date.now()}`, 'team', text, 0, ME.name));
@@ -233,6 +236,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
     chat.src = { sourceId: sid, label: sdef?.name ?? null, channel: sdef?.channel ?? 'unknown', by: sid ? 'Demo' : null, first: chat.src?.first ?? chat.messages.find((m) => m.sender === 'lead')?.text ?? '' };
     return json({ ok: true, source: { id: sid, label: sdef?.name ?? null, channel: sdef?.channel ?? 'unknown' } });
   }
+  if (leaf === 'ignore' && method === 'POST') { (chat as any).ignored = b?.ignored !== false; if ((chat as any).ignored) { chat.resolved = true; chat.status = 'off' as any; } else { chat.resolved = false; chat.status = 'bot'; } return json({ ok: true }); }
   if (leaf === 'resolve' && method === 'POST') { chat.resolved = b?.resolved !== false; return json({ ok: true }); }
   if (leaf === 'notes' && method === 'POST') {
     const text = String(b?.text ?? '').trim();

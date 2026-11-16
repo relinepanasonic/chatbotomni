@@ -1,6 +1,6 @@
 /** The shapes the ERP chat API returns (src/lib/chat/shape.ts in the ERP). */
 export type ChatStatus = 'bot' | 'human' | 'off' | 'new';
-export type ChatFilter = 'all' | 'mine' | 'unserved' | 'bot' | 'resolved' | 'followup';
+export type ChatFilter = 'all' | 'mine' | 'unserved' | 'bot' | 'resolved' | 'followup' | 'ignored';
 export interface ChatLabel { id: string; name: string; color: string }
 export interface NextReminder { id: string; dueAt: string; note: string | null; state: 'overdue' | 'today' | 'later' }
 export interface ReminderItem { id: string; dueAt: string; note: string | null; assignedName: string | null; createdBy: string | null; doneAt: string | null; doneBy: string | null; state: 'overdue' | 'today' | 'later' }
@@ -15,6 +15,7 @@ export interface ConversationSummary {
   unserved: boolean; waitingSince: string | null;
   status: ChatStatus; lead: Lead | null; botReplies: number;
   assignedTo: Person | null; resolved: boolean;
+  ignored?: boolean;
   source: ChatSource | null;
   labels?: ChatLabel[];
   nextReminder?: NextReminder | null;
@@ -30,7 +31,7 @@ export type Payment = 'unpaid' | 'partial' | 'paid' | 'overdue';
 /** The pipeline board (ERP src/lib/chat/data.ts loadPipeline): the same deals as the ERP board. */
 export interface BoardDeal { id: string; title: string; client: string; stage: string; value: number; sales: string | null; salesId: string | null; groupId: string | null; daysInStage: number; payment: Payment | null; nextMeetingAt: string | null }
 export interface BoardResponse { deals: BoardDeal[]; stages: string[]; me?: { id: string; name: string; role: string } }
-export interface Counts { all: number; mine: number; unserved: number; bot: number; human: number; resolved: number; followup?: number }
+export interface Counts { all: number; mine: number; unserved: number; bot: number; human: number; resolved: number; followup?: number; ignored?: number }
 export interface ListResponse { me?: { id: string; name: string; role: string }; conversations: ConversationSummary[]; counts: Counts; labels?: ChatLabel[]; features?: { media: boolean } }
 
 export type Sender = 'lead' | 'bot' | 'team' | 'note';
@@ -41,7 +42,7 @@ export interface Thread {
   messages: ThreadMessage[];
   bot: { status: ChatStatus; replies: number; reason: string | null; lead: Lead | null };
   botLog: Array<{ reply: string | null; handoff: boolean; ok: boolean; detail: string | null; created_at: string }>;
-  assignedTo: Person | null; resolved: boolean;
+  assignedTo: Person | null; resolved: boolean; ignored?: boolean; ignoredReason?: string | null; locked?: boolean;
   source: ChatSource | null; sourceId: string | null; firstMessage: string | null;
   client: { id: string; name: string; sales: string | null; serviceEnd: string | null } | null;
   deals: Array<{ id: string; title: string; stage: string; value: number; sales: string | null; salesId?: string | null; payment?: Payment | null; invoice?: { number: string | null; total: number; paid: number; due: string | null } | null }>;
