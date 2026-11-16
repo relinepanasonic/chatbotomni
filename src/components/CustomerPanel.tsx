@@ -27,7 +27,7 @@ async function call<T>(path: string, body?: unknown): Promise<{ ok: true; data: 
 
 const AVATAR = ['#2f9bf0', '#14b8a6', '#8b7cf6', '#f59e0b', '#ef6b8a', '#4f9d69', '#0ea5e9'];
 const avatarColor = (s: string) => AVATAR[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR.length];
-import { LOCKED, LOST, MANUAL, PAYMENT_CHIP, PAYMENT_LABEL, PIPELINE, STAGE_HINT, stageLabel, stagePart } from '@/lib/pipeline';
+import { COLD, LOCKED, LOST, MANUAL, PAYMENT_CHIP, PAYMENT_LABEL, PIPELINE, STAGE_HINT, stageLabel, stagePart } from '@/lib/pipeline';
 const ERP = 'https://erp.profesoronline.id';
 const PART_BAR = { lead: 'bg-brand', meeting: 'bg-[#7c5cff]', sale: 'bg-ok' } as const;
 const COLORS = Object.keys(LABEL_CLASS);
@@ -153,7 +153,7 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
         <section className="space-y-4 border-t border-line px-5 py-4" aria-label="Deals">
           {deals.map((d) => {
             const mine = !isSales || !d.salesId || d.salesId === me?.id;
-            const cold = d.stage === LOST;
+            const cold = d.stage === COLD || d.stage === LOST;
             const at = PIPELINE.indexOf(d.stage as (typeof PIPELINE)[number]);
             const locked = LOCKED.has(d.stage);
             return (
@@ -165,7 +165,7 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
                 <p className="text-[11.5px] text-ink-soft">{d.sales ? `Owned by ${d.sales}` : 'No owner'}{!mine ? ', so only they can move it' : ''}</p>
                 {cold ? (
                   <div className="mt-2 flex items-center justify-between rounded-lg bg-[#eef2f6] px-3 py-2 text-[12.5px]">
-                    <span className="font-bold text-ink-soft">Cold Leads</span>
+                    <span className="min-w-0"><span className="font-bold text-ink-soft">{stageLabel(d.stage)}</span>{d.stage === LOST && <span className="block text-[11.5px] text-ink-soft">Said no. Nothing is sent to this number.</span>}</span>
                     {mine && <button className={btnText} onClick={() => void moveStage(d.id, 'Lead')}>Bring back as new lead</button>}
                   </div>
                 ) : (
@@ -185,7 +185,8 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
                           className="shrink-0 rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] font-bold text-brand-dark outline-none focus:border-brand">
                           <option value="">Move to...</option>
                           {PIPELINE.filter((s) => MANUAL.has(s) && s !== d.stage).map((s) => <option key={s} value={s}>{stageLabel(s)}</option>)}
-                          <option value={LOST}>Cold Leads</option>
+                          <option value={COLD}>Cold Leads</option>
+                          <option value={LOST}>Lost (never contact again)</option>
                         </select>
                       )}
                     </div>

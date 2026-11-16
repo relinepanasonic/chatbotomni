@@ -397,7 +397,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                     {((c.labels && c.labels.length > 0) || c.nextReminder || c.stage) && (
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         {c.stage && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${STAGE_CHIP[stageTone(c.stage)]}`} title={STAGE_HINT[c.stage]}>{stageLabel(c.stage)}</span>}
-                        {c.payment && c.stage !== 'Cold Case' && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${PAYMENT_CHIP[c.payment]}`}>{PAYMENT_LABEL[c.payment]}</span>}
+                        {c.payment && c.stage !== 'Cold Case' && c.stage !== 'Lost' && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${PAYMENT_CHIP[c.payment]}`}>{PAYMENT_LABEL[c.payment]}</span>}
                         {c.nextReminder && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${c.nextReminder.state === 'overdue' ? 'bg-bad-soft text-bad' : c.nextReminder.state === 'today' ? 'bg-warn-soft text-warn' : 'bg-[#eef2f6] text-ink-soft'}`} title={c.nextReminder.note ?? undefined}>⏰ {c.nextReminder.state === 'overdue' ? 'Overdue' : c.nextReminder.state === 'today' ? `Today ${clock(c.nextReminder.dueAt)}` : shortTime(c.nextReminder.dueAt)}</span>}
                         {(c.labels || []).slice(0, 3).map((l) => <span key={l.id} className={`rounded-full px-1.5 py-px text-[10px] font-bold ${LABEL_CLASS[l.color] ?? LABEL_CLASS.blue}`}>{l.name}</span>)}
                       </span>

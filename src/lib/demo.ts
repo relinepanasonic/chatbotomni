@@ -140,7 +140,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
       mk('p6', 'Toko Bangunan Maju', 'Paket Juragan', 'Deal', 8000000, 'Lucy', 6, null, { payment: 'paid' }),
       mk('p7', 'Warung Kopi', 'Lead dari chat', 'Cold Case', 0, 'Lucy', 9, null),
     ];
-    return json({ deals: deals.map((x) => (boardStage[x.id] ? { ...x, stage: boardStage[x.id], daysInStage: 0 } : x)), stages: ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal', 'Cold Case'], me: { ...ME, role: 'sales' } });
+    return json({ deals: deals.map((x) => (boardStage[x.id] ? { ...x, stage: boardStage[x.id], daysInStage: 0 } : x)), stages: ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal', 'Cold Case', 'Lost'], me: { ...ME, role: 'sales' } });
   }
   if (parts[0] === 'deals' && parts[2] === 'stage') {
     if (/^p\d/.test(parts[1])) { boardStage[parts[1]] = String(b?.stage); return json({ ok: true }); }

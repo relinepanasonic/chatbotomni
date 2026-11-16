@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { BoardDeal, BoardResponse } from '@/lib/types';
-import { DROP_OK, FILTER_STAGES, LOCKED, LOST, PAYMENT_CHIP, PAYMENT_LABEL, STAGE_CHIP, STAGE_HINT, STUCK_DAYS, stageLabel, stageTone } from '@/lib/pipeline';
+import { COLD, DROP_OK, FILTER_STAGES, LOCKED, LOST, PAYMENT_CHIP, PAYMENT_LABEL, STAGE_CHIP, STAGE_HINT, STUCK_DAYS, stageLabel, stageTone } from '@/lib/pipeline';
 import { rpShort } from '@/lib/format';
 import { PageHeader } from './PageHeader';
 import { Rail } from './Rail';
@@ -56,7 +56,7 @@ export function PipelineApp({ demo }: { demo: boolean }) {
     } catch { setData(before); setNotice('No connection.'); }
   };
 
-  const columns = data?.stages?.length ? [...data.stages.filter((s) => s !== LOST), LOST] : [...FILTER_STAGES];
+  const columns = data?.stages?.length ? [...data.stages.filter((s) => s !== COLD && s !== LOST), COLD, LOST] : [...FILTER_STAGES];
   const byId = (id: string | null) => data?.deals.find((d) => d.id === id) ?? null;
 
   return (
