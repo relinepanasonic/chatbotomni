@@ -6,7 +6,7 @@ import { demoHandle } from './demo';
  * Calls the ERP's chat API for the signed-in person (their own access token, never a shared key) and passes the answer on.
  * With DEMO=1 (local only) it answers from made-up chats instead, so the design can be previewed without the ERP.
  */
-export async function erpProxy(path: string, init: { method?: 'GET' | 'POST' | 'DELETE'; body?: unknown } = {}): Promise<NextResponse> {
+export async function erpProxy(path: string, init: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown } = {}): Promise<NextResponse> {
   const method = init.method || 'GET';
   if (isDemo()) return demoHandle(path, method, init.body);
 

@@ -29,7 +29,7 @@ export interface InsightAction { action: string; pic: string; why: string }
 export interface InsightSummary { executive: string; insights: string[]; actions: InsightAction[]; model: string | null; ai: boolean; days: number }
 export type Payment = 'unpaid' | 'partial' | 'paid' | 'overdue';
 /** The pipeline board (ERP src/lib/chat/data.ts loadPipeline): the same deals as the ERP board. */
-export interface BoardDeal { id: string; title: string; client: string; stage: string; value: number; sales: string | null; salesId: string | null; groupId: string | null; daysInStage: number; payment: Payment | null; nextMeetingAt: string | null }
+export interface BoardDeal { id: string; code?: string; title: string; client: string; stage: string; value: number; sales: string | null; salesId: string | null; groupId: string | null; daysInStage: number; payment: Payment | null; nextMeetingAt: string | null }
 export interface BoardResponse { deals: BoardDeal[]; stages: string[]; me?: { id: string; name: string; role: string } }
 export interface Counts { all: number; mine: number; unserved: number; bot: number; human: number; resolved: number; followup?: number; ignored?: number }
 export interface ListResponse { me?: { id: string; name: string; role: string }; conversations: ConversationSummary[]; counts: Counts; labels?: ChatLabel[]; features?: { media: boolean } }

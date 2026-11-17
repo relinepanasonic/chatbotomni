@@ -32,6 +32,8 @@ export function PipelineApp({ demo }: { demo: boolean }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [phoneStage, setPhoneStage] = useState('Lead');      // on a phone one stage is shown at a time
+  const [editing, setEditing] = useState<BoardDeal | null>(null);
+  const [deleting, setDeleting] = useState<BoardDeal | null>(null);
 
   const run = useCallback(async () => {
     const r = await load();
@@ -104,7 +106,7 @@ export function PipelineApp({ demo }: { demo: boolean }) {
                   </div>
                   <ul className="flex-1 space-y-2 overflow-y-auto px-2 pb-3">
                     {list.length === 0 && <li className="px-2 py-4 text-center text-[11.5px] text-ink-soft/70">No cards</li>}
-                    {list.map((d) => <Card key={d.id} d={d} onDragStart={() => setDragId(d.id)} onDragEnd={() => { setDragId(null); setOver(null); }} onMove={(s) => void move(d, s)} dragging={dragId === d.id} />)}
+                    {list.map((d) => <Card key={d.id} d={d} onDragStart={() => setDragId(d.id)} onDragEnd={() => { setDragId(null); setOver(null); }} onMove={(s) => void move(d, s)} onEdit={() => setEditing(d)} onDelete={() => setDeleting(d)} dragging={dragId === d.id} />)}
                   </ul>
                 </section>
               );
@@ -112,11 +114,13 @@ export function PipelineApp({ demo }: { demo: boolean }) {
           </div>
         )}
       </main>
+      {editing && <EditLead deal={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setNotice(null); void run(); }} />}
+      {deleting && <DeleteLead deal={deleting} onClose={() => setDeleting(null)} onDeleted={() => { setData((d) => (d ? { ...d, deals: d.deals.filter((x) => x.id !== deleting.id) } : d)); setDeleting(null); void run(); }} />}
     </div>
   );
 }
 
-function Card({ d, dragging, onDragStart, onDragEnd, onMove }: { d: BoardDeal; dragging: boolean; onDragStart: () => void; onDragEnd: () => void; onMove: (stage: string) => void }) {
+function Card({ d, dragging, onDragStart, onDragEnd, onMove, onEdit, onDelete }: { d: BoardDeal; dragging: boolean; onDragStart: () => void; onDragEnd: () => void; onMove: (stage: string) => void; onEdit: () => void; onDelete: () => void }) {
   const locked = LOCKED.has(d.stage);
   const limit = STUCK_DAYS[d.stage];
   const late = !!limit && d.daysInStage > limit;
@@ -126,7 +130,7 @@ function Card({ d, dragging, onDragStart, onDragEnd, onMove }: { d: BoardDeal; d
         <span className="min-w-0 truncate text-[13px] font-extrabold">{d.client}</span>
         {d.value > 0 && <span className="shrink-0 text-[12px] font-bold">{rpShort(d.value)}</span>}
       </span>
-      <span className="mt-0.5 block truncate text-[11.5px] text-ink-soft">{d.title}</span>
+      <span className="mt-0.5 block truncate text-[11.5px] text-ink-soft">{d.title}{d.code ? <span className="font-semibold" title="Tell Fefe: Hi Fefe #code ..."> · #{d.code}</span> : null}</span>
       <span className="mt-1.5 flex flex-wrap items-center gap-1">
         {d.payment && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${PAYMENT_CHIP[d.payment]}`}>{PAYMENT_LABEL[d.payment]}</span>}
         {d.nextMeetingAt && <span className="rounded-full bg-[#ece7ff] px-1.5 py-px text-[10px] font-bold text-[#5b3fd1]" title="Next consultation">📅 {clock(d.nextMeetingAt)}</span>}
@@ -149,6 +153,111 @@ function Card({ d, dragging, onDragStart, onDragEnd, onMove }: { d: BoardDeal; d
         </select>
       )}
       {locked && <p className="mt-1.5 text-[10.5px] text-ink-soft">{d.stage === 'Deal' ? 'Active client' : 'Moved on by the invoice and payment in the ERP'}</p>}
+      <div className="mt-2 flex gap-1.5">
+        <button type="button" onClick={onEdit} className="flex-1 rounded-lg border border-line bg-white px-2 py-1.5 text-[11.5px] font-bold text-brand-dark transition hover:bg-brand-soft max-md:py-2">Edit</button>
+        {!locked && <button type="button" onClick={onDelete} className="flex-1 rounded-lg border border-line bg-white px-2 py-1.5 text-[11.5px] font-bold text-bad transition hover:bg-bad-soft max-md:py-2">Delete</button>}
+      </div>
     </li>
+  );
+}
+
+/** The edit form of a lead: the same client and deal as the ERP. A real client (one that has invoices) keeps its name and phone. */
+function EditLead({ deal, onClose, onSaved }: { deal: BoardDeal; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState<Record<string, string> | null>(null);
+  const [real, setReal] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/deals/${encodeURIComponent(deal.id)}`, { cache: 'no-store' });
+        const j = await res.json().catch(() => null);
+        if (!live) return;
+        if (!res.ok) { setErr(String(j?.error || 'Could not load the lead.')); return; }
+        setReal(!!j.realClient);
+        setF({ name: j.name || '', store: j.store || '', pic: j.pic || '', phone: j.phone || '', address: j.address || '', value: j.value ? String(j.value) : '', title: j.title || '', notes: j.notes || '' });
+      } catch { if (live) setErr('No connection.'); }
+    })();
+    return () => { live = false; };
+  }, [deal.id]);
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((x) => (x ? { ...x, [k]: e.target.value } : x));
+  const save = async () => {
+    if (!f) return;
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/deals/${encodeURIComponent(deal.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) { setErr(String(j?.error || 'Could not save.')); setBusy(false); return; }
+      onSaved();
+    } catch { setErr('No connection.'); setBusy(false); }
+  };
+  const input = 'mt-1 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-[16px] outline-none focus:border-brand disabled:bg-[#f3f6fa] disabled:text-ink-soft md:text-[13.5px]';
+  const label = 'block text-[12px] font-bold text-ink-soft';
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" role="dialog" aria-modal="true" aria-label="Edit lead">
+      <button type="button" aria-label="Close" className="absolute inset-0 bg-[#0b2a4a]/40" onClick={onClose} />
+      <div className="relative flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-3xl bg-white shadow-2xl md:rounded-3xl">
+        <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-5">
+          <div className="min-w-0">
+            <h2 className="truncate text-[16px] font-extrabold">Edit lead</h2>
+            {deal.code && <p className="text-[12px] text-ink-soft">Code #{deal.code}. Tell Fefe: Hi Fefe #{deal.code} pindah ke Warm</p>}
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg px-2 text-[20px] font-bold text-ink-soft hover:bg-brand-soft">×</button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-3">
+          {!f && !err && <p className="py-6 text-center text-[13px] text-ink-soft">Loading...</p>}
+          {f && (
+            <>
+              <label className={label}>Name (brand, store or person)<input value={f.name} onChange={set('name')} disabled={real} className={input} /></label>
+              <label className={label}>Store name<input value={f.store} onChange={set('store')} className={input} /></label>
+              <label className={label}>PIC (the person we talk to)<input value={f.pic} onChange={set('pic')} className={input} /></label>
+              <label className={label}>Phone<input value={f.phone} onChange={set('phone')} disabled={real} inputMode="tel" placeholder="0812 3456 7890" className={input} /></label>
+              {real && <p className="-mt-1 text-[11.5px] text-ink-soft">This is a client with invoices, so its name and phone are changed in the ERP.</p>}
+              <label className={label}>Address<input value={f.address} onChange={set('address')} className={input} /></label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className={label}>Deal title<input value={f.title} onChange={set('title')} className={input} /></label>
+                <label className={label}>Value (Rp)<input value={f.value} onChange={set('value')} inputMode="numeric" className={input} /></label>
+              </div>
+              <label className={label}>Notes<textarea value={f.notes} onChange={set('notes')} rows={3} className={input} /></label>
+            </>
+          )}
+          {err && <p role="alert" className="rounded-lg bg-bad-soft px-3 py-2 text-[12.5px] text-bad">{err}</p>}
+        </div>
+        <div className="flex gap-2 border-t border-line px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-line px-4 py-2.5 text-[13.5px] font-bold text-ink-soft hover:bg-brand-soft">Cancel</button>
+          <button type="button" onClick={() => void save()} disabled={!f || busy} className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-[13.5px] font-bold text-white transition hover:bg-brand-dark disabled:opacity-50">{busy ? 'Saving...' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Delete a lead: asks first, says what goes, and the ERP refuses a lead that has an invoice, a request or a project. */
+function DeleteLead({ deal, onClose, onDeleted }: { deal: BoardDeal; onClose: () => void; onDeleted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const go = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/deals/${encodeURIComponent(deal.id)}`, { method: 'DELETE' });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) { setErr(String(j?.error || 'Could not delete.')); setBusy(false); return; }
+      onDeleted();
+    } catch { setErr('No connection.'); setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" role="alertdialog" aria-modal="true" aria-label="Delete lead">
+      <button type="button" aria-label="Close" className="absolute inset-0 bg-[#0b2a4a]/40" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl md:rounded-3xl">
+        <h2 className="text-[16px] font-extrabold">Delete {deal.client}?</h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">The lead is deleted for good, in the ERP too. If it is only a prospect with nothing else attached, its client record goes with it. A lead with an invoice cannot be deleted: move it to Lost instead.</p>
+        {err && <p role="alert" className="mt-3 rounded-lg bg-bad-soft px-3 py-2 text-[12.5px] text-bad">{err}</p>}
+        <div className="mt-4 flex gap-2">
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-line px-4 py-2.5 text-[13.5px] font-bold text-ink-soft hover:bg-brand-soft">Keep it</button>
+          <button type="button" onClick={() => void go()} disabled={busy} className="flex-1 rounded-xl bg-bad px-4 py-2.5 text-[13.5px] font-bold text-white transition hover:brightness-95 disabled:opacity-50">{busy ? 'Deleting...' : 'Delete'}</button>
+        </div>
+      </div>
+    </div>
   );
 }

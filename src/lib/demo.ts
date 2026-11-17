@@ -80,7 +80,7 @@ const summary = (c: DemoChat): ConversationSummary => {
 
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
-export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body: unknown): NextResponse {
+export function demoHandle(path: string, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', body: unknown): NextResponse {
   const url = new URL(path, 'http://demo');
   const parts = url.pathname.split('/').filter(Boolean);
   const b: any = body;
@@ -140,7 +140,13 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'DELETE', body
       mk('p6', 'Toko Bangunan Maju', 'Paket Juragan', 'Deal', 8000000, 'Lucy', 6, null, { payment: 'paid' }),
       mk('p7', 'Warung Kopi', 'Lead dari chat', 'Cold Case', 0, 'Lucy', 9, null),
     ];
-    return json({ deals: deals.map((x) => (boardStage[x.id] ? { ...x, stage: boardStage[x.id], daysInStage: 0 } : x)), stages: ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal', 'Cold Case', 'Lost'], me: { ...ME, role: 'sales' } });
+    return json({ deals: deals.filter((x) => !boardGone[x.id]).map((x) => ({ ...x, code: x.id.replace(/\W/g, '').toUpperCase().padEnd(6, '0').slice(0, 6), ...(boardEdit[x.id]?.name ? { client: boardEdit[x.id].name } : {}), ...(boardStage[x.id] ? { stage: boardStage[x.id], daysInStage: 0 } : {}) })), stages: ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal', 'Cold Case', 'Lost'], me: { ...ME, role: 'sales' } });
+  }
+  if (parts[0] === 'deals' && parts.length === 2) {
+    const id = parts[1];
+    if (method === 'GET') { const e = boardEdit[id] || {}; return json({ id, code: id.replace(/\W/g, '').toUpperCase().padEnd(6, '0').slice(0, 6), stage: boardStage[id] || 'Lead', title: e.title ?? 'Lead dari chat', value: Number(e.value || 0), notes: e.notes ?? '', name: e.name ?? 'Demo lead', store: e.store ?? '', pic: e.pic ?? '', phone: e.phone ?? '', address: e.address ?? '', realClient: id === 'p5' || id === 'p6' }); }
+    if (method === 'PATCH') { if (!String(b?.name ?? '').trim()) return json({ error: 'Give the lead a name (the brand, the store or the person).' }, 400); boardEdit[id] = Object.fromEntries(Object.entries(b || {}).map(([k, v]) => [k, String(v ?? '')])); return json({ ok: true }); }
+    if (method === 'DELETE') { if (id === 'p5' || id === 'p6') return json({ error: 'This lead has an invoice or an invoice request, so it cannot be deleted. Move it to Lost instead.' }, 409); boardGone[id] = true; return json({ ok: true, clientDeleted: true }); }
   }
   if (parts[0] === 'deals' && parts[2] === 'stage') {
     if (/^p\d/.test(parts[1])) { boardStage[parts[1]] = String(b?.stage); return json({ ok: true }); }
@@ -285,7 +291,7 @@ const demoLog: BibleLogEntry[] = [
 ];
 const addLog = (doc: { id: string | null; title: string }, action: string, detail?: string) => demoLog.push({ id: `l${Date.now()}${demoLog.length}`, doc_id: doc.id, doc_title: doc.title, action, by_name: 'Demo', detail: detail ?? null, created_at: new Date().toISOString() });
 
-function bibleDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
+function bibleDemo(parts: string[], method: 'GET' | 'POST' | 'PATCH' | 'DELETE', b: any): NextResponse {
   const slim = (d: BibleDocFull) => { const { text, ...rest } = d; void text; return rest; };
   if (parts.length === 1) return json({ docs: [...docs].sort((x, y) => y.created_at.localeCompare(x.created_at)).map(slim), log: [...demoLog].sort((x, y) => y.created_at.localeCompare(x.created_at)), settings, canEdit: true });
   if (parts[1] === 'upload-url') return json({ ok: true, path: `demo/${Date.now()}-${String(b?.fileName ?? 'deck.pdf')}`, token: 'demo', bucket: 'ai-bible' });
@@ -319,7 +325,7 @@ function bibleDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): 
 }
 
 // ---------------------------------------------------------------- lead sources (demo)
-function sourcesDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any, url: URL): NextResponse {
+function sourcesDemo(parts: string[], method: 'GET' | 'POST' | 'PATCH' | 'DELETE', b: any, url: URL): NextResponse {
   if (parts.length === 1 && method === 'GET') return json({ sources: SOURCES, canEdit: true });
   if (parts.length === 1 && method === 'POST') {
     const name = String(b?.name ?? '').trim(); const msg = String(b?.first_message ?? '').trim();
@@ -361,7 +367,7 @@ const demoRuns: FlowRun[] = [
   { id: 'r2', flow_id: 'f1', flow_name: demoFlows[0].name, chat: 'Hendra Wijaya', trigger_text: 'Selamat pagi, saya lihat iklan kakak di Instagram', actions: ['ai'], handled: true, outcome: 'ok', detail: 'AI: replied', created_at: new Date(Date.now() - 26 * 3600000).toISOString() },
 ];
 
-function flowsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
+function flowsDemo(parts: string[], method: 'GET' | 'POST' | 'PATCH' | 'DELETE', b: any): NextResponse {
   const item = (f: FlowFull): FlowListItem => ({ id: f.id, name: f.name, description: f.description, active: f.active, boxes: f.graph.nodes.length, trigger: f.graph.nodes.find((n) => isTrigger(n.type))?.type ?? null, runs7d: demoRuns.filter((r) => r.flow_id === f.id).length, problems: validateGraph(f.graph).errors.length, created_by: 'Nico', created_at: f.updated_at, updated_at: f.updated_at, updated_by: f.updated_by });
   if (parts.length === 1 && method === 'GET') return json({ flows: demoFlows.map(item), canEdit: true });
   if (parts.length === 1 && method === 'POST') {
@@ -429,6 +435,8 @@ const meetSettings: MeetSettings = { enabled: true, days: [1, 2, 3, 4, 5], from:
 // kept on globalThis: in development each API route gets its own copy of this file
 const demoTeam = [{ id: 'u-rani', name: 'Rani', role: 'sales', inTeam: true }, { id: 'u-lucy', name: 'Lucy', role: 'superadmin', inTeam: false }, { id: 'u-herlan', name: 'Herlan', role: 'superadmin', inTeam: true }, { id: 'u-velly', name: 'Velly', role: 'advertiser', inTeam: true }];
 const boardStage: Record<string, string> = ((globalThis as any).__demoBoardStage ??= {});
+const boardEdit: Record<string, Record<string, string>> = ((globalThis as any).__demoBoardEdit ??= {});
+const boardGone: Record<string, boolean> = ((globalThis as any).__demoBoardGone ??= {});
 const atWib = (daysFromNow: number, hhmm: string) => { const d = new Date(Date.now() + daysFromNow * 86400000 + 7 * 3600000); return new Date(`${d.toISOString().slice(0, 10)}T${hhmm}:00+07:00`).toISOString(); };
 const demoMeetings: Meeting[] = [
   { id: 'm1', group_id: 'c1', lead_name: 'Budi', store: 'Kawat Nyamuk Jaya', starts_at: atWib(1, '10:00'), ends_at: atWib(1, '10:30'), status: 'booked', meet_url: 'https://meet.google.com/abc-defg-hij', booked_by: 'bot', note: null, created_at: new Date().toISOString(), chat: 'Budi Santoso', owner_name: 'Rani', confirm_sent_at: new Date().toISOString(), confirmed_at: new Date().toISOString() },
@@ -454,7 +462,7 @@ function demoSlots() {
 }
 const demoAfter = { thanks: true, noShow: true };
 const demoNudges = { enabled: true, hours: [24, 72], chats30d: 23, booked30d: 5 };
-function meetingsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
+function meetingsDemo(parts: string[], method: 'GET' | 'POST' | 'PATCH' | 'DELETE', b: any): NextResponse {
   if (parts.length === 1) return json({ meetings: [...demoMeetings].sort((x, y) => x.starts_at.localeCompare(y.starts_at)), settings: meetSettings, google: { configured: true, connected: true, email: 'tim.proftoko@gmail.com' }, canEdit: true, nudges: demoNudges, after: demoAfter });
   if (parts[1] === 'settings') { Object.assign(meetSettings, Object.fromEntries(Object.entries(b || {}).filter(([, v]) => v !== undefined))); return json({ ok: true }); }
   if (parts[1] === 'slots') return json({ slots: demoSlots() });
@@ -476,7 +484,7 @@ const demoBroadcasts: BroadcastItem[] = [
   { id: 'b1', name: 'Undangan konsultasi gratis', message: 'Hi kak {nama}, ...', status: 'running', total: 128, sent: 52, failed: 1, skipped: 2, left: 73, next_send_at: new Date(Date.now() + 140000).toISOString(), paused_reason: null, created_by: 'Nico', created_at: new Date(Date.now() - 2 * 86400000).toISOString(), finished_at: null },
   { id: 'b0', name: 'Info paket Oktober', message: 'Halo kak {nama}, ...', status: 'done', total: 96, sent: 94, failed: 0, skipped: 2, left: 0, next_send_at: new Date().toISOString(), paused_reason: null, created_by: 'Nico', created_at: new Date(Date.now() - 20 * 86400000).toISOString(), finished_at: new Date(Date.now() - 17 * 86400000).toISOString() },
 ];
-function broadcastsDemo(parts: string[], method: 'GET' | 'POST' | 'DELETE', b: any): NextResponse {
+function broadcastsDemo(parts: string[], method: 'GET' | 'POST' | 'PATCH' | 'DELETE', b: any): NextResponse {
   if (parts.length === 1 && method === 'GET') return json({ broadcasts: demoBroadcasts, settings: bcSettings, sentToday: 17, audience: { count: 131, optedOut: 4, days: 4 }, canEdit: true });
   if (parts.length === 1 && method === 'POST') {
     if (demoBroadcasts.some((x) => x.status === 'running' || x.status === 'paused')) return json({ error: 'Another broadcast is still running or paused. Finish or cancel it first, so the daily limit protects the number.' }, 409);
