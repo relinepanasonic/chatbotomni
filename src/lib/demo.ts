@@ -114,6 +114,10 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'PATCH' | 'DEL
     LABELS.push({ id: `lb${Date.now()}`, name, color: String(b?.color || 'blue') });
     return json({ ok: true });
   }
+  if (parts[0] === 'groups') {
+    if (method === 'POST') { const g = demoGroups.find((x) => x.id === String(b?.id)); if (g) g.active = b?.active === true; return json({ ok: true }); }
+    return json({ groups: demoGroups });
+  }
   if (parts[0] === 'team') {
     if (method === 'POST') { const keep = new Set((b?.people || []).map((p: any) => p.id)); for (const p of demoTeam) p.inTeam = keep.has(p.id); return json({ ok: true }); }
     return json({ people: demoTeam });
@@ -499,3 +503,8 @@ function broadcastsDemo(parts: string[], method: 'GET' | 'POST' | 'PATCH' | 'DEL
   if (b?.action === 'cancel') { x.status = 'cancelled'; x.skipped += x.left; x.left = 0; }
   return json({ ok: true });
 }
+
+const demoGroups: Array<{ id: string; name: string; active: boolean; lastAt: string | null; today: number; total: number }> = ((globalThis as any).__demoGroups ??= [
+  { id: 'g1', name: 'Seller Shopee Indonesia', active: true, lastAt: new Date().toISOString(), today: 2, total: 14 },
+  { id: 'g2', name: 'Komunitas TikTok Shop Seller', active: false, lastAt: new Date().toISOString(), today: 0, total: 0 },
+]);

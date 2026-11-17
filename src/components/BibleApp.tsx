@@ -302,6 +302,7 @@ function SettingsTab({ initial, canEdit, say }: { initial: BotSettings; canEdit:
         </label>
       </div>
       <SalesTeam />
+      <MarketplaceGroups />
       <PipelineAuto s={s} canEdit={canEdit} busy={busy} onSave={async (patch) => { if (await save(patch, 'Pipeline automation saved.')) setS((x) => ({ ...x, ...patch })); }} />
       <DeckLink value={s.deck_url ?? ''} canEdit={canEdit} busy={busy} onSave={async (v) => { if (await save({ deck_url: v }, v ? 'The deck link is saved. The bot sends it when a lead asks for the deck.' : 'The deck link is removed.')) setS((x) => ({ ...x, deck_url: v })); }} />
       <div className="grid gap-3 rounded-2xl border border-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -541,6 +542,45 @@ function SalesTeam() {
           </ul>
         </div>
       )}
+      {msg && <p role="status" className={`mt-2 text-[12.5px] ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>}
+    </div>
+  );
+}
+
+/** Fefe as a marketplace consultant in seller groups: the groups the sales number is in, and a switch for each. The BOD sets it. */
+function MarketplaceGroups() {
+  const me = useMe();
+  const [groups, setGroups] = useState<Array<{ id: string; name: string; active: boolean; lastAt: string | null; today: number; total: number }> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const load = useCallback(async () => { const r = await api<{ groups: Array<{ id: string; name: string; active: boolean; lastAt: string | null; today: number; total: number }> }>('/groups'); if (r.ok) setGroups(r.data.groups); }, []);
+  useEffect(() => { if (me?.isBod) void load(); }, [me?.isBod, load]);
+  if (!me?.isBod || !groups) return null;
+  const toggle = async (id: string, active: boolean) => {
+    setGroups(groups.map((g) => (g.id === id ? { ...g, active } : g))); setBusy(true); setMsg(null);
+    const r = await api<{ ok: true }>('/groups', { method: 'POST', body: JSON.stringify({ id, active }) });
+    setBusy(false);
+    if (!r.ok) { setMsg({ ok: false, text: r.error }); void load(); } else setMsg({ ok: true, text: active ? 'Fefe will answer questions in this group.' : 'Fefe is quiet in this group.' });
+  };
+  return (
+    <div className="rounded-2xl border border-line bg-white p-4">
+      <h2 className="text-[14.5px] font-extrabold">Marketplace groups</h2>
+      <p className="max-w-2xl text-[12.5px] text-ink-soft">Add the sales number to a seller group, send any message there once, and the group appears here. Switch Fefe on and she answers real marketplace questions like a consultant (from the Kampus): at most 5 answers a day per group, 20 minutes apart, never selling in the group, never writing a number. Group messages are not saved and nobody in a group is contacted. Only switch it on in groups where the admin allows it.</p>
+      {groups.length === 0 && <p className="mt-3 rounded-lg bg-brand-softer px-3 py-2 text-[12.5px] text-ink-soft">No groups yet. The sales number has not seen a message in a group.</p>}
+      <ul className="mt-3 divide-y divide-line">
+        {groups.map((g) => (
+          <li key={g.id} className="flex items-center justify-between gap-3 py-2.5">
+            <div className="min-w-0">
+              <div className="truncate text-[13.5px] font-bold">{g.name}</div>
+              <div className="text-[11.5px] text-ink-soft">{g.active ? `${g.today} answers today, ${g.total} in all` : 'Fefe is quiet here'}</div>
+            </div>
+            <label className="flex shrink-0 cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-ink-soft">
+              <input type="checkbox" className="h-5 w-5 accent-[#2f9bf0]" checked={g.active} disabled={busy} onChange={(e) => void toggle(g.id, e.target.checked)} aria-label={`Fefe answers in ${g.name}`} />
+              {g.active ? 'On' : 'Off'}
+            </label>
+          </li>
+        ))}
+      </ul>
       {msg && <p role="status" className={`mt-2 text-[12.5px] ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>}
     </div>
   );
