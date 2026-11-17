@@ -528,7 +528,7 @@ function SalesTeam() {
       {people.some((p) => p.inTeam) && (
         <div className="mt-4 border-t border-line pt-3">
           <h3 className="text-[13.5px] font-extrabold">WhatsApp numbers that can command Fefe</h3>
-          <p className="max-w-2xl text-[12.5px] text-ink-soft">A salesperson who writes "Hi Fefe" with the template (Nama Brand, Nama Toko, Nama PIC, Alamat, Kategori, Pipeline) to the sales number adds a lead to the pipeline, or changes its pipeline. Nico and Herlan (the BOD report numbers) can always do it. A team number is never counted as a lead.</p>
+          <p className="max-w-2xl text-[12.5px] text-ink-soft">A salesperson who writes "Hi Fefe" with the template (Nama Brand, Nama Toko, Nama PIC, Alamat, Kategori, Pipeline) to the sales number adds a lead to the pipeline, or changes its pipeline. Nico, Herlan and Lucy (the report numbers) can always do it. A team number is never counted as a lead.</p>
           <ul className="mt-2 space-y-2">
             {people.filter((p) => p.inTeam).map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-2">
