@@ -565,7 +565,7 @@ function MarketplaceGroups() {
   return (
     <div className="rounded-2xl border border-line bg-white p-4">
       <h2 className="text-[14.5px] font-extrabold">Marketplace groups</h2>
-      <p className="max-w-2xl text-[12.5px] text-ink-soft">Add the sales number to a seller group, send any message there once, and the group appears here. Switch Fefe on and she answers real marketplace questions like a consultant (from the Kampus): at most 5 answers a day per group, 20 minutes apart, never selling in the group, never writing a number. Group messages are not saved and nobody in a group is contacted. Only switch it on in groups where the admin allows it.</p>
+      <p className="max-w-2xl text-[12.5px] text-ink-soft">Add the sales number to a seller group, send any message there once, and the group appears here. Switch Fefe on and she joins in like the smartest, funniest person in the group: short casual bubbles, helpful answers to real marketplace questions (from the Kampus), and a cheer ("wah kereeeen kak") for people who show their store. No promotion at all: no price, package, link or number. Sometimes she says "kl mau tanya tanya lebih detail boleh japri saya ya guys", so people who want more write to you first. At most 5 times a day per group, 20 minutes apart. Group messages are not saved and nobody in a group is contacted. Only switch it on where the admin allows it.</p>
       {groups.length === 0 && <p className="mt-3 rounded-lg bg-brand-softer px-3 py-2 text-[12.5px] text-ink-soft">No groups yet. The sales number has not seen a message in a group.</p>}
       <ul className="mt-3 divide-y divide-line">
         {groups.map((g) => (
