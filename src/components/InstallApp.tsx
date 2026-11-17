@@ -15,7 +15,7 @@ export function InstallApp() {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => { /* the app works without it */ });
+    if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => { /* the app works without it */ });
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
     if (standalone) setInstalled(true);
     setIos(/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone);

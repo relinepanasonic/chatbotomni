@@ -60,6 +60,7 @@ const I = {
   search: 'M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z',
   send: 'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z',
   back: 'M15 18l-6-6 6-6',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
   gear: 'M12 15a3 3 0 100-6 3 3 0 000 6zm7.4-3a7.4 7.4 0 00-.1-1.2l2-1.5-2-3.4-2.3 1a7.5 7.5 0 00-2-1.2L14.6 3h-4l-.4 2.7a7.5 7.5 0 00-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 000 2.4l-2 1.5 2 3.4 2.3-1a7.5 7.5 0 002 1.2l.4 2.7h4l.4-2.7a7.5 7.5 0 002-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z',
   phone: 'M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .4 1.9.7 2.8a2 2 0 01-.5 2.1L8.1 9.9a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.8.7a2 2 0 011.7 2z',
   alert: 'M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
@@ -105,9 +106,9 @@ function Bubble({ m }: { m: ThreadMessage }) {
   const label = m.sender === 'bot' ? 'Fefe · bot' : m.sender === 'team' ? (m.senderName || 'Team') : null;
   return (
     <div className={`pop flex ${mine ? 'justify-end' : 'justify-start'}`}>
-      <div className="max-w-[78%]">
+      <div className="max-w-[86%] md:max-w-[78%]">
         {label && <div className={`mb-0.5 text-[10px] font-semibold ${mine ? 'text-right' : ''} text-ink-soft`}>{label}</div>}
-        <div className={`${style} whitespace-pre-wrap break-words px-3.5 py-2 text-[13.5px] leading-relaxed shadow-[0_1px_2px_rgba(23,49,77,0.06)]`}>
+        <div className={`${style} whitespace-pre-wrap break-words px-3 py-1.5 text-[13.5px] leading-snug shadow-[0_1px_2px_rgba(23,49,77,0.06)] md:px-3.5 md:py-2 md:leading-relaxed md:shadow-[0_1px_2px_rgba(23,49,77,0.06)]`}>
           {m.mediaType === 'image' && m.mediaUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <a href={m.mediaUrl} target="_blank" rel="noreferrer"><img src={m.mediaUrl} alt="Picture in the chat" className="mb-1 max-h-64 max-w-full rounded-lg" loading="lazy" /></a>
@@ -135,6 +136,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [quick, setQuick] = useState<QuickReply[]>([]);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [qrOpen, setQrOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [text, setText] = useState('');
   const [mode, setMode] = useState<'reply' | 'note'>('reply');
   const [sending, setSending] = useState(false);
@@ -321,8 +323,8 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   }, [thread]);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-bg text-ink max-md:pb-16">
-      <Rail active="inbox" />
+    <div className={`flex h-dvh w-full overflow-hidden bg-bg text-ink ${selected ? '' : 'max-md:pb-16'}`}>
+      <Rail active="inbox" phoneBar={!selected} />
 
       {/* ------------------------------------------------ 1. inbox list */}
       <section className={`${selected ? 'hidden lg:flex' : 'flex'} w-full shrink-0 flex-col border-r border-line bg-panel lg:w-[360px]`} aria-label="Conversations">
@@ -420,13 +422,15 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
           </div>
         ) : (
           <>
-            <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-panel px-4 py-3">
-              <button className="rounded-lg p-1.5 text-ink-soft hover:bg-brand-soft lg:hidden" onClick={() => setSelected(null)} aria-label="Back to the inbox"><Icon d={I.back} /></button>
+            <header className="flex items-center gap-2 border-b border-line bg-panel px-2.5 py-2.5 md:flex-wrap md:gap-x-3 md:gap-y-2 md:px-4 md:py-3">
+              <button className="rounded-lg p-2 text-ink-soft hover:bg-brand-soft lg:hidden" onClick={() => setSelected(null)} aria-label="Back to the inbox"><Icon d={I.back} /></button>
               <Avatar name={current.name} initials={current.initials} size={38} channel={channel} />
-              <div className="min-w-0 flex-1 basis-40">
+              <div className="min-w-0 flex-1 md:basis-40">
                 <div className="truncate text-[14.5px] font-extrabold">{current.name}</div>
-                <div className="flex items-center gap-1.5 text-[11.5px] text-ink-soft">{channel === 'whatsapp' ? <><Icon d={I.phone} size={12} />+{current.phone}</> : <><ChannelMark channel={channel} size={13} />{CHANNEL_NAME[channel]} DM</>}</div>
+                <div className="flex items-center gap-1.5 truncate text-[11.5px] text-ink-soft">{channel === 'whatsapp' ? <><Icon d={I.phone} size={12} />+{current.phone}</> : <><ChannelMark channel={channel} size={13} />{CHANNEL_NAME[channel]} DM</>}<span className="truncate md:hidden">· {assigned?.name ?? 'Unassigned'}</span></div>
               </div>
+              {/* a computer has room for every button; a phone gets one menu */}
+              <div className="hidden md:contents">
               <span className={`hidden rounded-full px-2.5 py-1 text-[11px] font-bold 2xl:inline ${status === 'bot' ? 'bg-brand-soft text-brand-dark' : status === 'human' ? 'bg-ok-soft text-ok' : 'bg-[#eef2f6] text-ink-soft'}`}>{STATUS_LABEL[status]}</span>
               <label className="flex items-center gap-1.5 text-[11.5px] font-semibold text-ink-soft">
                 <span className="hidden sm:inline">Handled by</span>
@@ -441,9 +445,32 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                 : <button onClick={() => setStatus('bot')} title="Give the chat back to the bot. It locks again until someone clicks I take over." className="rounded-lg border border-brand px-3 py-1.5 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft">Bot Auto</button>}
               <button onClick={() => act('ignore', { ignored: !ignored })} title={ignored ? 'Give this chat back: the bot can answer it again.' : 'Not a lead (a code, an automatic message): the bot stays quiet and it leaves the numbers.'} className="rounded-lg border border-line px-3 py-1.5 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft">{ignored ? 'This is a lead' : 'Not a lead'}</button>
               <button onClick={() => act('resolve', { resolved: !resolved })} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold transition ${resolved ? 'border border-line text-ink-soft hover:bg-brand-soft' : 'bg-ok text-white hover:brightness-95'}`}><Icon d={I.check} size={14} />{resolved ? 'Reopen' : 'Resolve'}</button>
+              </div>
+              <button type="button" aria-label="Chat actions" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)} className="rounded-lg p-2 text-ink-soft hover:bg-brand-soft md:hidden"><Icon d={I.more} size={22} /></button>
             </header>
+            {menuOpen && (
+              <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Chat actions">
+                <button type="button" aria-label="Close" className="absolute inset-0 bg-[#0b2a4a]/30" onClick={() => setMenuOpen(false)} />
+                <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl">
+                  <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line" aria-hidden="true" />
+                  <p className="mb-3 truncate text-[14px] font-extrabold">{current.name}</p>
+                  <label className="block text-[12px] font-bold text-ink-soft">Handled by
+                    <select value={assigned?.id ?? ''} onChange={(e) => { act('assign', { userId: e.target.value || null }); setMenuOpen(false); }} aria-label="Assign this chat" className="mt-1 h-11 w-full rounded-xl border border-line bg-white px-3 text-[15px] font-semibold text-ink outline-none focus:border-brand">
+                      <option value="">Unassigned</option>
+                      {assigned && !agents.some((a) => a.id === assigned.id) && <option value={assigned.id}>{assigned.name}</option>}
+                      {agents.map((a) => <option key={a.id} value={a.id}>{a.name}{me?.id === a.id ? ' (me)' : ''}</option>)}
+                    </select>
+                  </label>
+                  <ul className="mt-3 space-y-0.5">
+                    {!locked && <li><button type="button" onClick={() => { setStatus('bot'); setMenuOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold text-ink active:bg-brand-soft"><span>Bot Auto<span className="block text-[12px] font-normal text-ink-soft">Give the chat back to Fefe. It locks until someone takes over.</span></span></button></li>}
+                    <li><button type="button" onClick={() => { act('ignore', { ignored: !ignored }); setMenuOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold text-ink active:bg-brand-soft">{ignored ? 'This is a lead' : 'Not a lead'}</button></li>
+                    <li><button type="button" onClick={() => { act('resolve', { resolved: !resolved }); setMenuOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold text-ink active:bg-brand-soft"><span>{resolved ? 'Reopen' : 'Resolve'}</span><span className={resolved ? 'text-ink-soft' : 'text-ok'}><Icon d={I.check} size={18} /></span></button></li>
+                  </ul>
+                </div>
+              </div>
+            )}
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" role="log" aria-live="polite">
+            <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-3 py-3 md:space-y-3 md:px-4 md:py-4" role="log" aria-live="polite">
               {!thread && <p className="text-center text-[13px] text-ink-soft">Loading the conversation...</p>}
               {resolved && <p className="mx-auto w-fit rounded-full bg-ok-soft px-3 py-1 text-[11.5px] font-bold text-ok">Resolved. A new message from the lead, or your reply, reopens it.</p>}
               {groups.map((g) => (
@@ -455,7 +482,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
               <div ref={endRef} />
             </div>
 
-            <footer className={`relative border-t px-4 py-3 ${mode === 'note' ? 'border-[#f2d9a0] bg-[#fffaf0]' : 'border-line bg-panel'}`}>
+            <footer className={`relative border-t px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:px-4 md:py-3 ${mode === 'note' ? 'border-[#f2d9a0] bg-[#fffaf0]' : 'border-line bg-panel'}`}>
               {slashMatches.length > 0 && (
                 <ul role="listbox" aria-label="Quick replies" className="absolute inset-x-4 bottom-full mb-1 max-h-56 overflow-y-auto rounded-xl border border-line bg-white py-1 shadow-xl">
                   {slashMatches.map((x, i) => (
@@ -468,30 +495,36 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                   ))}
                 </ul>
               )}
-              {typingLocked && (
-                <div role="status" className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-brand-soft px-3 py-2 text-[12.5px] text-brand-dark">
-                  <span className="flex items-center gap-1.5"><Icon d={I.lock} size={14} />{status === 'bot' ? 'Fefe (the bot) is answering this chat. It is locked so nobody replies by accident.' : 'Nobody owns this chat yet. It is locked until someone takes it.'}</span>
-                  <button onClick={() => setStatus('human')} className="rounded-lg bg-brand px-3 py-1 text-[12px] font-bold text-white transition hover:bg-brand-dark">I take over</button>
+              {typingLocked ? (
+                <div className="space-y-1">
+                  {notice && <p role="alert" className="mb-1 flex items-center gap-1.5 rounded-lg bg-bad-soft px-3 py-1.5 text-[12px] text-bad"><Icon d={I.alert} size={14} />{notice.text}</p>}
+                  <div role="status" className="flex items-center gap-3 rounded-xl bg-brand-soft px-3 py-2.5 text-brand-dark">
+                    <span className="shrink-0"><Icon d={I.lock} size={18} /></span>
+                    <p className="min-w-0 flex-1 text-[13px] font-bold leading-snug">{status === 'bot' ? 'Fefe is answering this chat.' : 'Nobody owns this chat yet.'}<span className="block text-[11.5px] font-normal text-brand-dark/80">Take it over to reply.</span></p>
+                    <button onClick={() => setStatus('human')} className="shrink-0 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white transition hover:bg-brand-dark">I take over</button>
+                  </div>
+                  <button onClick={() => setMode('note')} className="w-full py-1.5 text-center text-[12px] font-semibold text-ink-soft">Write a note for the team instead</button>
                 </div>
-              )}
+              ) : (
+                <>
               {mode === 'reply' && channel !== 'whatsapp' && minutesLeft !== null && (
                 windowClosed
                   ? <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-bad-soft px-3 py-1.5 text-[12px] text-bad"><Icon d={I.lock} size={14} />{CHANNEL_NAME[channel]} only allows a reply within 24 hours of the customer&apos;s last message, and that time is over. When they write again you can reply. You can still add a note for the team.</p>
                   : <p className={`mb-2 text-[11.5px] font-semibold ${minutesLeft < 120 ? 'text-warn' : 'text-ink-soft'}`}>{CHANNEL_NAME[channel]}: you can reply for {durLabel(minutesLeft)} more (24 hours after the customer&apos;s last message).</p>
               )}
               {notice && <p role="alert" className={`mb-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] ${notice.kind === 'error' ? 'bg-bad-soft text-bad' : 'bg-brand-soft text-brand-dark'}`}><Icon d={I.alert} size={14} />{notice.text}</p>}
-              <div className="mb-2 flex items-center gap-1.5">
+              <div className="mb-1.5 flex items-center gap-1.5 md:mb-2">
                 <div className="flex rounded-lg bg-[#e8eff7] p-0.5 text-[12px] font-bold" role="tablist" aria-label="Message type">
-                  <button role="tab" aria-selected={mode === 'reply'} onClick={() => setMode('reply')} className={`rounded-md px-3 py-1 transition ${mode === 'reply' ? 'bg-white text-brand-dark shadow-sm' : 'text-ink-soft'}`}>Reply</button>
-                  <button role="tab" aria-selected={mode === 'note'} onClick={() => setMode('note')} className={`rounded-md px-3 py-1 transition ${mode === 'note' ? 'bg-warn-soft text-warn shadow-sm' : 'text-ink-soft'}`}>Note</button>
+                  <button role="tab" aria-selected={mode === 'reply'} onClick={() => setMode('reply')} className={`rounded-md px-3.5 py-1.5 transition md:px-3 md:py-1 ${mode === 'reply' ? 'bg-white text-brand-dark shadow-sm' : 'text-ink-soft'}`}>Reply</button>
+                  <button role="tab" aria-selected={mode === 'note'} onClick={() => setMode('note')} className={`rounded-md px-3.5 py-1.5 transition md:px-3 md:py-1 ${mode === 'note' ? 'bg-warn-soft text-warn shadow-sm' : 'text-ink-soft'}`}>Note</button>
                 </div>
                 {mode === 'reply' && (
                   <>
-                    <button onClick={suggest} disabled={suggesting || locked} className="flex items-center gap-1.5 rounded-lg border border-brand/40 px-2.5 py-1 text-[12px] font-bold text-brand-dark transition hover:bg-brand-soft disabled:opacity-50" title="The AI writes a draft from the bot's knowledge. Nothing is sent."><Icon d={I.spark} size={14} />{suggesting ? 'Writing...' : 'Suggest reply'}</button>
-                    <button onClick={() => setQrOpen(true)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft" title="Type / in the box to use a quick reply"><Icon d={I.bolt} size={14} />Quick replies</button>
+                    <button onClick={suggest} disabled={suggesting || locked} className="flex items-center gap-1.5 rounded-lg border border-brand/40 px-2.5 py-1 text-[12px] max-md:h-9 max-md:w-9 max-md:justify-center max-md:p-0 font-bold text-brand-dark transition hover:bg-brand-soft disabled:opacity-50" title="The AI writes a draft from the bot's knowledge. Nothing is sent."><Icon d={I.spark} size={14} /><span className="max-md:sr-only">{suggesting ? 'Writing...' : 'Suggest reply'}</span></button>
+                    <button onClick={() => setQrOpen(true)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold text-ink-soft transition hover:bg-brand-soft max-md:h-9 max-md:w-9 max-md:justify-center max-md:p-0" title="Type / in the box to use a quick reply"><Icon d={I.bolt} size={14} /><span className="max-md:sr-only">Quick replies</span></button>
                     <button onClick={() => (channel !== 'whatsapp' ? setNotice({ kind: 'info', text: `Sending photos to ${CHANNEL_NAME[channel]} is not ready yet. Send text, or share a link.` }) : mediaOn ? fileRef.current?.click() : setNotice({ kind: 'info', text: "Sending photos is locked: the sales number's Fonnte package does not include attachments yet. After upgrading, an admin can switch it on in AI Kamus > Bot script & settings." }))}
-                      aria-disabled={!mediaOn} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition ${mediaOn ? 'text-ink-soft hover:bg-brand-soft' : 'cursor-not-allowed text-[#a9b8c7]'}`}
-                      title={mediaOn ? 'Send a photo (the text becomes its caption)' : 'Locked: needs a Fonnte package with attachments on the sales number'}><Icon d={mediaOn ? I.clip : I.lock} size={14} />Photo{!mediaOn && <span className="rounded bg-[#eef2f6] px-1 text-[9.5px] font-extrabold uppercase tracking-wide">Locked</span>}</button>
+                      aria-disabled={!mediaOn} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition max-md:h-9 max-md:w-9 max-md:justify-center max-md:p-0 ${mediaOn ? 'text-ink-soft hover:bg-brand-soft' : 'cursor-not-allowed text-[#a9b8c7]'}`}
+                      title={mediaOn ? 'Send a photo (the text becomes its caption)' : 'Locked: needs a Fonnte package with attachments on the sales number'}><Icon d={mediaOn ? I.clip : I.lock} size={14} /><span className="max-md:sr-only">Photo</span>{!mediaOn && <span className="hidden rounded bg-[#eef2f6] md:inline px-1 text-[9.5px] font-extrabold uppercase tracking-wide">Locked</span>}</button>
                     <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { setAttach(f); setNotice(null); boxRef.current?.focus(); } }} />
                   </>
                 )}
@@ -516,11 +549,13 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
                     }
                     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); }
                   }}
-                  placeholder={mode === 'note' ? 'Write a private note for the team...' : typingLocked ? 'Locked: click I take over to answer this chat' : windowClosed ? 'The reply window is closed: switch to Note to write for the team' : 'Type a message, or / for a quick reply (Enter to send, Shift+Enter for a new line)'}
-                  className={`max-h-40 min-h-[42px] flex-1 resize-none rounded-xl border px-3.5 py-2.5 text-[13.5px] outline-none placeholder:text-[#8aa0b6] focus:bg-white ${mode === 'note' ? 'border-[#f2d9a0] bg-[#fff6e0] focus:border-warn' : 'border-line bg-brand-softer focus:border-brand'}`} />
+                  placeholder={mode === 'note' ? 'Write a private note for the team...' : typingLocked ? 'Locked: click I take over to answer this chat' : windowClosed ? 'The reply window is closed: switch to Note to write for the team' : 'Type a message, or / for quick replies'}
+                  className={`max-h-40 min-h-[42px] flex-1 resize-none rounded-xl border px-3.5 py-2.5 text-[16px] outline-none placeholder:text-[#8aa0b6] md:text-[13.5px] focus:bg-white ${mode === 'note' ? 'border-[#f2d9a0] bg-[#fff6e0] focus:border-warn' : 'border-line bg-brand-softer focus:border-brand'}`} />
                 <button onClick={send} disabled={sending || typingLocked || (mode === 'reply' && windowClosed) || (!text.trim() && !(attach && mode === 'reply'))} aria-label={mode === 'note' ? 'Save note' : 'Send message'} className={`flex h-[42px] shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-40 ${mode === 'note' ? 'w-auto bg-warn px-3 text-[12.5px] font-bold hover:brightness-95' : 'w-[42px] bg-brand hover:bg-brand-dark'}`}>{mode === 'note' ? 'Add note' : <Icon d={I.send} size={18} />}</button>
               </div>
-              <p className="mt-1.5 text-[10.5px] text-ink-soft">{mode === 'note' ? 'Notes are only for the team. The lead never sees them.' : `Sent from ${channel === 'whatsapp' ? 'the sales number' : channel === 'instagram' ? 'your Instagram account' : 'your Facebook Page'}.`}</p>
+              <p className="mt-1.5 hidden text-[10.5px] text-ink-soft md:block">{mode === 'note' ? 'Notes are only for the team. The lead never sees them.' : `Sent from ${channel === 'whatsapp' ? 'the sales number' : channel === 'instagram' ? 'your Instagram account' : 'your Facebook Page'}.`}</p>
+                </>
+              )}
             </footer>
           </>
         )}

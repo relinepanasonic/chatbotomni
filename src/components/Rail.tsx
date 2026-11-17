@@ -46,7 +46,7 @@ const isSetting = (p: RailPage) => p === 'kamus' || p === 'skenario';
 /** On a phone the bottom bar has the four everyday pages; the rest is under Lainnya. */
 const PHONE_BAR: RailPage[] = ['statistik', 'inbox', 'jadwal', 'pipeline'];
 
-export function Rail({ active }: { active: RailPage }) {
+export function Rail({ active, phoneBar = true }: { active: RailPage; phoneBar?: boolean }) {
   const me = useMe();
   const settings = SETTINGS.filter((s) => !s.bod || me?.isBod);
   const [sheet, setSheet] = useState(false);
@@ -83,7 +83,7 @@ export function Rail({ active }: { active: RailPage }) {
       </nav>
 
       {/* ---------------------------------------------------------------- phones: a bottom bar */}
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      {phoneBar && <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <ul className="grid h-16 grid-cols-5">
           {MAIN.filter((it) => PHONE_BAR.includes(it.page)).map((it) => (
             <li key={it.page}>
@@ -98,7 +98,7 @@ export function Rail({ active }: { active: RailPage }) {
             </button>
           </li>
         </ul>
-      </nav>
+      </nav>}
       {sheet && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="More pages">
           <button type="button" aria-label="Close" className="absolute inset-0 bg-[#0b2a4a]/30" onClick={() => setSheet(false)} />
