@@ -214,6 +214,7 @@ export function CustomerPanel({ current, thread, me, agents, allLabels, leadSour
         <Fold title="Profile" hint={thread?.client ? `${thread.client.sales ? `Sales: ${thread.client.sales}` : 'Client'}` : thread?.bot.lead?.store || 'Not a client yet'}>
           <dl className="space-y-1.5 text-[12.5px]">
             <Row k="In the ERP" v={thread?.client ? thread.client.name : 'Not yet'} />
+            {thread?.client?.no ? <Row k="Client ID" v={String(thread.client.no)} /> : null}
             {thread?.client?.sales && <Row k="Salesperson" v={thread.client.sales} />}
             {thread?.client?.serviceEnd && <Row k="Project ends" v={thread.client.serviceEnd} />}
             {thread?.bot.lead?.name && <Row k="Name (told the bot)" v={thread.bot.lead.name} />}

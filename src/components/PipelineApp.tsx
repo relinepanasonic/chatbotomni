@@ -130,7 +130,7 @@ function Card({ d, dragging, onDragStart, onDragEnd, onMove, onEdit, onDelete }:
         <span className="min-w-0 truncate text-[13px] font-extrabold">{d.client}</span>
         {d.value > 0 && <span className="shrink-0 text-[12px] font-bold">{rpShort(d.value)}</span>}
       </span>
-      <span className="mt-0.5 block truncate text-[11.5px] text-ink-soft">{d.title}{d.code ? <span className="font-semibold" title="Tell Fefe: Hi Fefe #code ..."> · #{d.code}</span> : null}</span>
+      <span className="mt-0.5 block truncate text-[11.5px] text-ink-soft">{d.title}{d.clientNo ? <span className="font-bold text-brand-dark" title="Client ID. Tell Fefe: Hi Fefe ID ..."> · ID {d.clientNo}</span> : d.code ? <span className="font-semibold" title="Tell Fefe: Hi Fefe #code ..."> · #{d.code}</span> : null}</span>
       <span className="mt-1.5 flex flex-wrap items-center gap-1">
         {d.payment && <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${PAYMENT_CHIP[d.payment]}`}>{PAYMENT_LABEL[d.payment]}</span>}
         {d.nextMeetingAt && <span className="rounded-full bg-[#ece7ff] px-1.5 py-px text-[10px] font-bold text-[#5b3fd1]" title="Next consultation">📅 {clock(d.nextMeetingAt)}</span>}
@@ -165,6 +165,7 @@ function Card({ d, dragging, onDragStart, onDragEnd, onMove, onEdit, onDelete }:
 function EditLead({ deal, onClose, onSaved }: { deal: BoardDeal; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState<Record<string, string> | null>(null);
   const [real, setReal] = useState(false);
+  const [no, setNo] = useState<number | null>(deal.clientNo ?? null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
@@ -175,7 +176,7 @@ function EditLead({ deal, onClose, onSaved }: { deal: BoardDeal; onClose: () => 
         const j = await res.json().catch(() => null);
         if (!live) return;
         if (!res.ok) { setErr(String(j?.error || 'Could not load the lead.')); return; }
-        setReal(!!j.realClient);
+        setReal(!!j.realClient); if (j.clientNo) setNo(Number(j.clientNo));
         setF({ name: j.name || '', store: j.store || '', pic: j.pic || '', phone: j.phone || '', address: j.address || '', value: j.value ? String(j.value) : '', title: j.title || '', notes: j.notes || '' });
       } catch { if (live) setErr('No connection.'); }
     })();
@@ -201,7 +202,7 @@ function EditLead({ deal, onClose, onSaved }: { deal: BoardDeal; onClose: () => 
         <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-5">
           <div className="min-w-0">
             <h2 className="truncate text-[16px] font-extrabold">Edit lead</h2>
-            {deal.code && <p className="text-[12px] text-ink-soft">Code #{deal.code}. Tell Fefe: Hi Fefe #{deal.code} pindah ke Warm</p>}
+            {(no || deal.code) && <p className="text-[12px] text-ink-soft">{no ? <>Client ID <b>{no}</b>. Tell Fefe: Hi Fefe ID {no} pindah ke Warm</> : <>Code #{deal.code}. Tell Fefe: Hi Fefe #{deal.code} pindah ke Warm</>}</p>}
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg px-2 text-[20px] font-bold text-ink-soft hover:bg-brand-soft">×</button>
         </div>
