@@ -10,5 +10,5 @@ export async function GET() {
 export async function POST(request: Request) {
   let b: any = null;
   try { b = await request.json(); } catch { /* no body */ }
-  return erpProxy('/team', { method: 'POST', body: { people: Array.isArray(b?.people) ? b.people.map((p: any) => ({ id: String(p?.id ?? ''), name: String(p?.name ?? '') })) : [] } });
+  return erpProxy('/team', { method: 'POST', body: { people: Array.isArray(b?.people) ? b.people.map((p: any) => ({ id: String(p?.id ?? ''), name: String(p?.name ?? ''), phone: String(p?.phone ?? '') })) : [] } });
 }

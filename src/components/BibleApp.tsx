@@ -497,19 +497,19 @@ function PipelineAuto({ s, canEdit, busy, onSave }: { s: BotSettings; canEdit: b
 /** Who the salespeople are: only they can be given chats and leads, and they can open this dashboard as a salesperson. The BOD sets it. */
 function SalesTeam() {
   const me = useMe();
-  const [people, setPeople] = useState<Array<{ id: string; name: string; role: string; inTeam: boolean }> | null>(null);
+  const [people, setPeople] = useState<Array<{ id: string; name: string; role: string; inTeam: boolean; phone?: string }> | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const load = useCallback(async () => { const r = await api<{ people: Array<{ id: string; name: string; role: string; inTeam: boolean }> }>('/team'); if (r.ok) setPeople(r.data.people); }, []);
+  const load = useCallback(async () => { const r = await api<{ people: Array<{ id: string; name: string; role: string; inTeam: boolean; phone?: string }> }>('/team'); if (r.ok) setPeople(r.data.people); }, []);
   useEffect(() => { if (me?.isBod) void load(); }, [me?.isBod, load]);
   if (!me?.isBod || !people) return null;
-  const toggle = async (id: string, on: boolean) => {
-    const next = people.map((p) => (p.id === id ? { ...p, inTeam: on } : p));
+  const save = async (next: typeof people) => {
     setPeople(next); setBusy(true); setMsg(null);
-    const r = await api<{ ok: true }>('/team', { method: 'POST', body: JSON.stringify({ people: next.filter((p) => p.inTeam).map((p) => ({ id: p.id, name: p.name })) }) });
+    const r = await api<{ ok: true }>('/team', { method: 'POST', body: JSON.stringify({ people: next.filter((p) => p.inTeam).map((p) => ({ id: p.id, name: p.name, phone: p.phone || '' })) }) });
     setBusy(false);
     if (!r.ok) { setMsg({ ok: false, text: r.error }); void load(); } else setMsg({ ok: true, text: 'The sales team is saved.' });
   };
+  const toggle = (id: string, on: boolean) => save(people.map((p) => (p.id === id ? { ...p, inTeam: on } : p)));
   const ROLE: Record<string, string> = { superadmin: 'Superadmin', admin: 'Admin', sales: 'Sales', advertiser: 'Advertiser', accounting: 'Accounting', founder: 'Founder' };
   return (
     <div className="rounded-2xl border border-line bg-white p-4">
@@ -525,6 +525,22 @@ function SalesTeam() {
           </li>
         ))}
       </ul>
+      {people.some((p) => p.inTeam) && (
+        <div className="mt-4 border-t border-line pt-3">
+          <h3 className="text-[13.5px] font-extrabold">WhatsApp numbers that can command Fefe</h3>
+          <p className="max-w-2xl text-[12.5px] text-ink-soft">A salesperson who writes "Hi Fefe" with the template (Nama Brand, Nama Toko, Nama PIC, Alamat, Kategori, Pipeline) to the sales number adds a lead to the pipeline, or changes its pipeline. Nico and Herlan (the BOD report numbers) can always do it. A team number is never counted as a lead.</p>
+          <ul className="mt-2 space-y-2">
+            {people.filter((p) => p.inTeam).map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-2">
+                <span className="w-28 text-[13px] font-bold">{p.name}</span>
+                <input defaultValue={p.phone || ''} inputMode="tel" placeholder="0812 3456 7890" aria-label={`WhatsApp number of ${p.name}`} disabled={busy}
+                  onBlur={(e) => { if (e.target.value !== (p.phone || '')) void save(people.map((x) => (x.id === p.id ? { ...x, phone: e.target.value } : x))); }}
+                  className="w-52 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] outline-none focus:border-brand" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {msg && <p role="status" className={`mt-2 text-[12.5px] ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>}
     </div>
   );
