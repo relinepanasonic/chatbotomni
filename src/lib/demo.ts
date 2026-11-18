@@ -114,6 +114,13 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'PATCH' | 'DEL
     LABELS.push({ id: `lb${Date.now()}`, name, color: String(b?.color || 'blue') });
     return json({ ok: true });
   }
+  if (parts[0] === 'groups' && parts[2] === 'log') {
+    return json({ entries: parts[1] === 'g1' ? [
+      { at: new Date(Date.now() - 3600000).toISOString(), question: 'Kak gimana caranya biar toko Shopee ga sepi? produk udah 50 tapi order dikit', reply: 'wah klasik banget nih guys\ncek dulu judul sama foto utamanya, itu yang paling sering bikin sepi\nkalo udah rapi baru main iklan', ok: true, detail: 'sent' },
+      { at: new Date(Date.now() - 1800000).toISOString(), question: 'Alhamdulillah omzet toko saya akhirnya tembus 50 juta bulan ini', reply: 'wah kereeeen kak\nbulan depan gas lagi ya', ok: true, detail: 'sent' },
+      { at: new Date(Date.now() - 600000).toISOString(), question: 'Guys gimana sih jualan di shopee sekarang?', reply: '', ok: false, detail: 'Fonnte refused part 1: invalid group id' },
+    ] : [] });
+  }
   if (parts[0] === 'groups') {
     if (method === 'POST') { const g = demoGroups.find((x) => x.id === String(b?.id)); if (g) g.active = b?.active === true; return json({ ok: true }); }
     return json({ groups: demoGroups });

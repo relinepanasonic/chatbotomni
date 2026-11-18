@@ -10,7 +10,7 @@ import { useMe } from '@/lib/useMe';
  * Laptops and tablets: the narrow light blue bar with icons only; the name of an icon shows when the mouse is on it. Phones: a bottom bar with the four pages
  * used every day and "Lainnya" for the rest.
  */
-export type RailPage = 'statistik' | 'inbox' | 'jadwal' | 'pipeline' | 'broadcast' | 'sumber' | 'kamus' | 'skenario';
+export type RailPage = 'statistik' | 'inbox' | 'grup' | 'jadwal' | 'pipeline' | 'broadcast' | 'sumber' | 'kamus' | 'skenario';
 
 const ICON = {
   statistik: 'M4 4h7v7H4V4zm9 0h7v4h-7V4zm0 6h7v10h-7V10zM4 13h7v7H4v-7z',
@@ -22,6 +22,7 @@ const ICON = {
   setting: 'M12 15a3 3 0 100-6 3 3 0 000 6zm7.4-3c0-.4 0-.8-.1-1.2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-2-1.2L14.5 3h-4l-.4 2.6a7.6 7.6 0 00-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 000 2.4l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 002 1.2l.4 2.6h4l.4-2.6a7.6 7.6 0 002-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z',
   kamus: 'M4 5a2 2 0 012-2h12v16H6a2 2 0 00-2 2V5zm0 14a2 2 0 002 2h12M9 7h6M9 11h6',
   skenario: 'M5 4h5v5H5V4zm9 11h5v5h-5v-5zM10 6.5h2.5A2.5 2.5 0 0115 9v6',
+  grup: 'M9 11a3 3 0 100-6 3 3 0 000 6zm6 1a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM3 19a6 6 0 0112 0H3zm13 0a5 5 0 015-4.5V19h-5z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
 };
 
@@ -29,10 +30,11 @@ const Svg = ({ d, size = 20, bold }: { d: string; size?: number; bold?: boolean 
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={bold ? 3 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
 );
 
-interface Item { page: RailPage; href: string; label: string; short: string; icon: string }
+interface Item { page: RailPage; href: string; label: string; short: string; icon: string; bod?: boolean }
 const MAIN: Item[] = [
   { page: 'statistik', href: '/statistik', label: 'Dashboard', short: 'Dashboard', icon: ICON.statistik },
   { page: 'inbox', href: '/', label: 'Chat', short: 'Chat', icon: ICON.inbox },
+  { page: 'grup', href: '/grup', label: 'Grup', short: 'Grup', icon: ICON.grup, bod: true },
   { page: 'jadwal', href: '/jadwal', label: 'Jadwal', short: 'Jadwal', icon: ICON.jadwal },
   { page: 'pipeline', href: '/pipeline', label: 'Pipeline', short: 'Pipeline', icon: ICON.pipeline },
   { page: 'broadcast', href: '/broadcast', label: 'Broadcast', short: 'Broadcast', icon: ICON.broadcast },
@@ -49,6 +51,7 @@ const PHONE_BAR: RailPage[] = ['statistik', 'inbox', 'jadwal', 'pipeline'];
 export function Rail({ active, phoneBar = true }: { active: RailPage; phoneBar?: boolean }) {
   const me = useMe();
   const settings = SETTINGS.filter((s) => !s.bod || me?.isBod);
+  const main = MAIN.filter((it) => !it.bod || me?.isBod);
   const [sheet, setSheet] = useState(false);
   useEffect(() => { if (!sheet) return; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setSheet(false); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [sheet]);
   const moreActive = !PHONE_BAR.includes(active);
@@ -60,7 +63,7 @@ export function Rail({ active, phoneBar = true }: { active: RailPage; phoneBar?:
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="Prof Toko Online" width={46} height={46} className="mb-3 h-[46px] w-[46px] drop-shadow-[0_2px_4px_rgba(10,60,120,0.35)]" />
         <ul className="flex flex-col items-center gap-2">
-          {MAIN.map((it) => <NavLink key={it.page} it={it} on={it.page === active} />)}
+          {main.map((it) => <NavLink key={it.page} it={it} on={it.page === active} />)}
           <li className="group relative">
             {/* Setting: AI Kamus, and Skenario for the BOD. The two names open beside the icon on hover, on focus and on touch. */}
             <button type="button" aria-haspopup="menu" aria-label="Setting" aria-current={isSetting(active) ? 'page' : undefined}
@@ -85,7 +88,7 @@ export function Rail({ active, phoneBar = true }: { active: RailPage; phoneBar?:
       {/* ---------------------------------------------------------------- phones: a bottom bar */}
       {phoneBar && <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <ul className="grid h-16 grid-cols-5">
-          {MAIN.filter((it) => PHONE_BAR.includes(it.page)).map((it) => (
+          {main.filter((it) => PHONE_BAR.includes(it.page)).map((it) => (
             <li key={it.page}>
               <Link href={it.href} aria-current={it.page === active ? 'page' : undefined} className={`flex h-full flex-col items-center justify-center gap-1 text-[11px] font-semibold ${it.page === active ? 'text-brand-dark' : 'text-ink-soft'}`}>
                 <span className={`flex h-7 w-12 items-center justify-center rounded-full ${it.page === active ? 'bg-brand-soft' : ''}`}><Svg d={it.icon} /></span>{it.short}
@@ -105,7 +108,7 @@ export function Rail({ active, phoneBar = true }: { active: RailPage; phoneBar?:
           <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line" aria-hidden="true" />
             <ul className="space-y-1">
-              {MAIN.filter((it) => !PHONE_BAR.includes(it.page)).map((it) => <SheetLink key={it.page} it={it} on={it.page === active} />)}
+              {main.filter((it) => !PHONE_BAR.includes(it.page)).map((it) => <SheetLink key={it.page} it={it} on={it.page === active} />)}
             </ul>
             <p className="mb-1 mt-4 px-3 text-[12px] font-bold text-ink-soft">Setting</p>
             <ul className="space-y-1">
