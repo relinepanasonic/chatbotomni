@@ -100,7 +100,7 @@ export function GrupApp({ demo }: { demo: boolean }) {
           {!selected || !current ? (
             <div className="m-auto max-w-sm px-6 text-center">
               <h2 className="text-[16px] font-extrabold">Pick a group</h2>
-              <p className="mt-1 text-[13px] text-ink-soft">You see each question Fefe reacted to and what she said back. Group chats are not saved, and nobody in a group is shown by name or number. Fefe talks short and casual, never sells, and at most 5 times a day per group.</p>
+              <p className="mt-1 text-[13px] text-ink-soft">You see each question Fefe reacted to and what she said back. Group chats are not saved, and nobody in a group is shown by name or number. Fefe talks short and casual, never sells, never writes "wkwk" or "haha", and invites to private chat only after a few turns with the same person.</p>
             </div>
           ) : (
             <>
