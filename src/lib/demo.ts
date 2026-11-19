@@ -94,6 +94,11 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'PATCH' | 'DEL
   }
   if (parts[0] === 'meetings') return meetingsDemo(parts, method, b);
   if (parts[0] === 'broadcasts') return broadcastsDemo(parts, method, b);
+  if (parts[0] === 'conversations' && parts[1] === 'start' && method === 'POST') {
+    const digits = String(b?.phone || '').replace(/\D/g, '');
+    if (digits.length < 9) return json({ error: 'The number looks wrong. Write it like 0812 3456 7890.' }, 400);
+    return json({ ok: true, id: 'c1', isNew: true });
+  }
   if (parts[0] === 'conversations' && parts[2] === 'meeting' && method === 'POST') {
     const slot = demoSlots().find((x) => x.code === b?.start);
     if (!slot) return json({ error: 'That time is not free any more. Pick another one.' }, 409);

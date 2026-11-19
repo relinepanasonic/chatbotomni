@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NewChatModal } from './NewChatModal';
 import { FILTER_STAGES, PAYMENT_CHIP, PAYMENT_LABEL, STAGE_CHIP, STAGE_HINT, stageLabel, stageTone } from '@/lib/pipeline';
 import { channelLabel, type Agent, type ChatFilter, type ChatStatus, type ConversationSummary, type Counts, type LeadSource, type ListResponse, type QuickReply, type SourcesResponse, type Thread, type ThreadMessage, type ChatLabel } from '@/lib/types';
 import { dayLabel, durLabel, timeLabel, shortTime, waitLabel, waitMinutes, waitTone } from '@/lib/format';
@@ -136,6 +137,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
   const [quick, setQuick] = useState<QuickReply[]>([]);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [qrOpen, setQrOpen] = useState(false);
+  const [newChatOpen, setNewChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [text, setText] = useState('');
   const [mode, setMode] = useState<'reply' | 'note'>('reply');
@@ -333,6 +335,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
           <div className="flex items-center gap-2 text-[11px] text-ink-soft">
             {demo && <span className="rounded-full bg-warn-soft px-2 py-0.5 font-bold text-warn">DEMO</span>}
             {me && <span>{me.name}</span>}
+            <button onClick={() => setNewChatOpen(true)} title="Write the first message to a number. It is sent from the sales number and kept here." className="flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:bg-brand-dark"><span aria-hidden="true">+</span> New chat</button>
             <button onClick={toggleAlerts} aria-pressed={alertsOn} title={alertsOn ? 'New-chat alerts are on (sound and notification)' : 'Turn on sound and notifications for new chats'} className={`rounded-lg p-1.5 transition ${alertsOn ? 'bg-brand text-white' : 'text-ink-soft hover:bg-brand-soft'}`}><Icon d={alertsOn ? I.bell : I.bellOff} size={16} /></button>
           </div>
         </header>
@@ -567,6 +570,7 @@ export function ChatApp({ demo, erpUrl }: { demo: boolean; erpUrl: string }) {
           status={status} assigned={assigned} resolved={resolved} onAct={act} onChanged={() => void refresh()} />
       )}
 
+      {newChatOpen && <NewChatModal myName={me?.name ?? ''} onClose={() => setNewChatOpen(false)} onStarted={(id) => { setNewChatOpen(false); void loadList(); if (id) { setSelected(id); setNotice(null); setMode('reply'); setText(''); } }} />}
       {qrOpen && <QuickReplyManager items={quick} onClose={() => setQrOpen(false)} onChanged={() => void loadQuick()} />}
     </div>
   );
