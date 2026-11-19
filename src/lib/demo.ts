@@ -151,7 +151,7 @@ export function demoHandle(path: string, method: 'GET' | 'POST' | 'PATCH' | 'DEL
       mk('p6', 'Toko Bangunan Maju', 'Paket Juragan', 'Deal', 8000000, 'Lucy', 6, null, { payment: 'paid' }),
       mk('p7', 'Warung Kopi', 'Lead dari chat', 'Cold Case', 0, 'Lucy', 9, null),
     ];
-    return json({ deals: deals.filter((x) => !boardGone[x.id]).map((x) => ({ ...x, code: x.id.replace(/\W/g, '').toUpperCase().padEnd(6, '0').slice(0, 6), ...(boardEdit[x.id]?.name ? { client: boardEdit[x.id].name } : {}), ...(boardStage[x.id] ? { stage: boardStage[x.id], daysInStage: 0 } : {}) })), stages: ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal', 'Cold Case', 'Lost'], me: { ...ME, role: 'sales' } });
+    return json({ deals: deals.filter((x) => !boardGone[x.id]).map((x) => ({ ...x, code: x.id.replace(/\W/g, '').toUpperCase().padEnd(6, '0').slice(0, 6), ...(boardEdit[x.id]?.name ? { client: boardEdit[x.id].name } : {}), ...(boardStage[x.id] ? { stage: boardStage[x.id], daysInStage: 0 } : {}) })), stages: ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Offline', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal', 'Cold Case', 'Lost'], me: { ...ME, role: 'sales' } });
   }
   if (parts[0] === 'deals' && parts.length === 2) {
     const id = parts[1];

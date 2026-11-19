@@ -2,7 +2,7 @@
  * The sales pipeline, the same list as the ERP (Accounting Prof, src/lib/sales/flow.ts): one pipeline, two screens. The stored names of the old
  * stages are kept ('Lead', 'Invoice', 'Deal', 'Cold Case'); people read the labels.
  */
-export const PIPELINE = ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal'] as const;
+export const PIPELINE = ['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Offline', 'Meeting Done', 'Negotiation', 'Invoice Requested', 'Invoice', 'Deal'] as const;
 /** Cold Leads: went quiet, or said not now. Lost: said no or asked not to be contacted, never messaged again. */
 export const COLD = 'Cold Case';
 export const LOST = 'Lost';
@@ -10,16 +10,16 @@ const LABEL: Record<string, string> = { Lead: 'New Lead', Invoice: 'Invoice Sent
 export const stageLabel = (s: string) => LABEL[s] || s;
 export const STAGE_HINT: Record<string, string> = {
   Lead: 'First message, nothing known yet', Contacted: 'We answered and the lead replied', Qualified: 'We know the name, the store and the need',
-  Warm: 'Asked about price, packages or the deck', 'Meeting Offered': 'Free times sent, waiting for a pick', 'Meeting Booked': 'A consultation is booked',
+  Warm: 'Asked about price, packages or the deck', 'Meeting Offered': 'Free times sent, waiting for a pick', 'Meeting Booked': 'A consultation is booked', 'Meeting Offline': 'A meeting in person is set (told to Fefe)',
   'Meeting Done': 'The consultation happened', Negotiation: 'Proposal and price, then the ACC in the ERP', 'Invoice Requested': 'Waiting for Accounting',
   Invoice: 'Invoice made, waiting for payment', Deal: 'Paid: the project starts', 'Cold Case': 'Quiet after 3 follow-ups, or not now',
   Lost: 'Said no or asked not to be contacted: never messaged again',
 };
 /** Stages a person may pick. The three after Negotiation are set by the invoice request, the invoice and the payment in the ERP. */
-export const MANUAL = new Set<string>(['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Done', 'Negotiation']);
+export const MANUAL = new Set<string>(['Lead', 'Contacted', 'Qualified', 'Warm', 'Meeting Offered', 'Meeting Booked', 'Meeting Offline', 'Meeting Done', 'Negotiation']);
 export const LOCKED = new Set<string>(['Invoice Requested', 'Invoice', 'Deal']);
 /** The three parts of the road, for the colour of the bar. */
-export const stagePart = (s: string): 'lead' | 'meeting' | 'sale' => (['Meeting Offered', 'Meeting Booked', 'Meeting Done'].includes(s) ? 'meeting' : ['Negotiation', 'Invoice Requested', 'Invoice', 'Deal'].includes(s) ? 'sale' : 'lead');
+export const stagePart = (s: string): 'lead' | 'meeting' | 'sale' => (['Meeting Offered', 'Meeting Booked', 'Meeting Offline', 'Meeting Done'].includes(s) ? 'meeting' : ['Negotiation', 'Invoice Requested', 'Invoice', 'Deal'].includes(s) ? 'sale' : 'lead');
 
 /** The colour family of a stage chip: before the meeting, the meeting, the sale, active, lost. */
 export const stageTone = (s: string): 'lead' | 'meeting' | 'sale' | 'active' | 'lost' => (s === 'Cold Case' || s === 'Lost' ? 'lost' : s === 'Deal' ? 'active' : stagePart(s) === 'meeting' ? 'meeting' : stagePart(s) === 'sale' ? 'sale' : 'lead');
